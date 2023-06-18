@@ -1,0 +1,296 @@
+---
+title: "Fantasy Football Data Wrangling for Keepers"
+author: "Ryan Plain"
+date: "2021-03-21"
+categories: [fantasy football, analysis, R]
+image: "thumbnail.png"
+---
+
+This is a post with executable code.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+My previous post dove in on sample analysis of our fantasy football league utilizing the API from [Sleeper](https://sleeper.app/). Since then, I have discovered an amazing package [**{ffscrapr}**](https://ffscrapr.dynastyprocess.com) on CRAN, developed by [Tan](https://twitter.com/_TanHo). This package does everything for you to get data from Sleeper into easy to work with data frames.
+
+## The Goal
+
+```{r, out.width='100%', echo=FALSE}
+knitr::include_graphics('img/keepers.png')
+draft_picks <- readRDS("data/draft_picks.rds")
+transactions <- readRDS("data/transactions.rds")
+```
+
+Each year we draft players for the upcoming season, which is typically referred to as *redraft* format. A couple years ago we began a *keeper* format where we can keep a player from the previous year.
+
+There are several ways to implement a keeper format, our rules are as follows:
+
+-   Keep 1 player, that player can not be kept consecutive years\
+-   The kept player will be kept at the round they were drafted in with a single round penalty (i.e. if you drafted a player in round 10, you would keep them in round 9 the following year)\
+-   If you trade a player, the new team gets the rights to keep that player\
+-   The player must remain on the roster at least until the week before their respective bye week
+
+As you can imagine, this is a nightmare to track in a spreadsheet as a commissioner.
+
+------------------------------------------------------------------------
+
+## The Solution
+
+Only a few packages needed (if you count **{tidyverse}** as a few that is) to begin the analysis.
+
+```{r, echo=FALSE}
+library(tidyverse)
+library(ggtext)
+library(ggimage)
+library(ffscrapr)
+```
+
+## ffscrapr
+
+Tan has well documented how the package works through the **{ffscraper}** website. I won't go into too much detail, as the API is fairly simple to understand from the function names alone. Basically, create a *league* object and get the draft picks and transactions for it.
+
+The league I will be focusing on is a leauge is called *The Hot Boyz*... Hopefully Dallas Cowboys fans understand!
+
+```{r, eval=FALSE}
+my_leagues <- ffscrapr::sleeper_userleagues("rplain", 2020)
+
+league_id <- my_leagues %>% 
+  filter(league_name == 'The Hot Boyz') %>% 
+  pull(league_id)
+
+my_league <- ffscrapr::ff_connect(platform = 'sleeper', 
+                                  season = 2020, 
+                                  league_id = league_id)
+
+transactions <- ff_transactions(my_league)
+
+draft_picks <- ff_draft(my_league) 
+
+```
+
+------------------------------------------------------------------------
+
+Below is what the draft board looked like following the draft.
+
+```{r}
+draft_picks %>% 
+  select(round, pick, franchise_name, player_name, pos, team) %>% 
+   mutate(player_name = ifelse(is.na(player_name), paste(team, " Def"), player_name)) %>% 
+  pivot_wider(
+    id_cols = round,
+    names_from = franchise_name,
+    values_from = player_name
+  ) %>% 
+  `colnames<-`(c("Round",1:10)) %>% 
+  gt::gt()
+
+
+```
+
+This was the initial draft board. My team was the 9th slot. I traded away Julio Jones and cut Odell Beckham Jr. after he went to Injured Reserve. There needs to be a logic to represent these moves, as they are no longer eligible to keep.
+
+In addition to structuring the rules, I would like to:
+
+-   Provide color the names by each player's position, as is typical on most fantasy football draft boards.
+-   Allow multiple players to occupy a draft slot. In the case of a traded player, there can be overlap on eligible keepers for one team in a particular round .
+
+These can not be done with a pivot table (at least not without hardcoding elements). The final output will need to be in a **tidy** format to allow usage of the grammar of graphics in **{ggplot2}**.
+
+### Ineligible Keepers
+
+To start with, create a list of the players kept from 2019 in 2020. The players are no longer eligible and need to be filtered out.
+
+The NFL and fantasy football is played weekly. Using the **{lubridate}**, create week 1 of the NFL season from the *timestamp* field in the transactions data frame.
+
+To get the players that were dropped early in advance of their bye week:
+
+-   Filter for transactions that successfully dropped players
+-   Add in each teams bye week
+-   Get the earliest *drop* (each player can be added/dropped multiple times throughout the season)\
+-   Subset as a list of unique names
+
+```{r}
+
+kept_players <- c(
+  'Lamar Jackson',
+  'Josh Jacobs',
+  'Austin Ekeler',
+  'Aaron Jones',
+  'DK Metcalf',
+  'Kenyan Drake',
+  'Courtland Sutton',
+  'Josh Allen',
+  'D.J. Moore',
+  'Derrick Henry'
+)  
+
+transactions <- transactions %>% 
+  mutate(week = lubridate::week(timestamp) - 36)
+
+
+dropped_players <- transactions %>% 
+  filter(type_desc == 'dropped') %>% 
+  filter(type != 'waiver_failed') %>% 
+  mutate(
+    bye_weeks = case_when(
+      team %in% c("PIT", "TEN") ~ 4,
+      team %in% c("DEN", "DET", "GB", "NE") ~ 5,
+      team %in% c("LV", "LAC", "NO", "SEA") ~ 6,
+      team %in% c("BAL", "IND", "MIA", "MIN") ~ 7,
+      team %in% c("ARI", "HOU", "JAX", "WAS") ~ 8,
+      team %in% c("CIN", "CLE", "LAR", "PHI") ~ 9,
+      team %in% c("ATL", "DAL", "KC", "NYJ") ~ 10,
+      team %in% c("BUF", "CHI", "NYG", "SF") ~ 11,
+      team %in% c("CAR", "TB") ~ 13
+    )
+  ) %>% 
+  group_by(player_name, player_id) %>% 
+  arrange(timestamp, player_id) %>% 
+  mutate(rn = row_number()) %>% 
+  filter(rn == 1) %>% 
+  filter(week < bye_weeks - 1) %>% 
+  #filter(franchise_id == 1) %>% print(n= 32)
+  pull(player_name) %>% 
+  unique()
+
+```
+
+### Traded Players
+
+**{ffscrapr}** does so much of the leg work for you. In the transactions of the trade, a field *trade_partner* is already included which contains the ID of who the trade went to.
+
+Again, follow a similar logic to most recent occurrence of the traded player. For example, Michael Gallup was traded 3 times in our league. He needs to be placed on the final team he ended up on.
+
+A separate table *franchises* was created to join the *franchise_name* to the output.
+
+Finally, I created a list of the names in our league. If you didn't see my previous work, you might notice the 9th spot did not turn out so well.
+
+```{r}
+
+franchises <- draft_picks %>% 
+  count(franchise_id, franchise_name, pick) %>% 
+  select(-n) 
+
+trades <- transactions %>% 
+  filter(type == 'trade') %>% 
+  group_by(player_name) %>% 
+  arrange(timestamp) %>% 
+  mutate(rn = row_number()) %>% 
+  filter(rn == max(rn)) %>% 
+  select(franchise_id, franchise_name, player_name, trade_partner) %>%
+  mutate(trade_partner = as.numeric(trade_partner)) %>% 
+  left_join(
+    franchises, by = c("trade_partner"="franchise_id"), suffix = c("","_trade")
+  ) 
+
+users <- c(
+  'CHAMP',
+  'Wayne',
+  'Jacob',
+  'Tony',
+  'Ben',
+  'Clayton',
+  'Zach',
+  'Mitch',
+  'Last Place',
+  'Connor'
+)
+
+```
+
+## The Plot
+
+```{r, eval=FALSE}
+draft_picks %>% 
+  filter(round != 1) %>% 
+  mutate(round = round - 1) %>% 
+  mutate(url = glue::glue(
+    "https://sleepercdn.com/content/nfl/players/thumb/{player_id}.jpg"
+  )) %>% 
+  bind_rows(
+    tibble(
+      round = rep(0, 10), 
+      player_name = users,
+      pick = 1:10
+      )
+    ) %>% 
+  filter(!player_name %in% dropped_players & !player_name %in% kept_players) %>%
+  left_join(
+    trades, 
+    by = c("franchise_name", "player_name"),
+    suffix = c("", "_trade")
+  ) %>% 
+  mutate(pick = ifelse(
+    !is.na(pick_trade) & round != 0,
+    pick_trade, 
+    pick
+    )) %>% 
+  group_by(round, pick) %>% 
+  mutate(hjust = n(),
+         hjust_n = row_number()) %>% 
+  ungroup() %>% 
+  mutate(player_name = case_when(
+    player_name == 'Clyde Edwards-Helaire'~'C. Edwards-Helaire',
+    TRUE ~ player_name
+  )) %>% 
+  ggplot(aes(pick, round)) +
+  geom_point(alpha = 0) +
+  geom_label(
+    aes(label = player_name, fill = pos), 
+    show.legend = F, 
+    data = . %>% filter(round > 0, hjust > 1, hjust_n == 1),
+    vjust = 1,
+    size = 5
+  ) +
+  geom_label(
+    aes(label = player_name, fill = pos),
+    size = 5, 
+    show.legend = F, 
+    data = . %>% filter(round > 0, hjust > 1, hjust_n == 2),
+    vjust = -0.1
+  ) +
+  geom_label(
+    aes(label = player_name, fill = pos), 
+    size = 5, 
+    show.legend = F, 
+    data = . %>% filter(round > 0, hjust == 1)
+    ) +
+  geom_text(
+    aes(label = player_name),
+    data = . %>% 
+      filter(round == 0),
+    size = 7,
+    color = "#FFFFFF"
+  ) +
+  scale_y_reverse(breaks = c(1:15)) +
+  theme_minimal() +
+  labs(
+    title = "Keepers 2021",
+    x = NULL,
+    y = NULL
+  ) +
+  theme(
+    panel.grid = element_blank(),
+    axis.text.x = element_blank(),
+    axis.text.y = element_text(color="#FFFFFF", size = 18),
+    plot.title = element_text(size = 30, face = "bold", hjust = 0.5, color = "#FFFFFF"),
+    plot.background = element_rect(fill = "#494f5c"),
+  ) +
+  geom_hline(yintercept = 0.5) +
+  geom_hline(yintercept = seq(1.5, 13.5, 1), alpha = 0.5) +
+  scale_fill_manual(
+    values =  c("#d65858","#00ba5d","#ff7c43", "#58ffff")
+  )
+
+```
+
+```{r, out.width='100%', echo=FALSE}
+knitr::include_graphics('img/keepers.png')
+```
+
+I've included the code on how I created the plot, however I've cut a corner by not having the code evaluated at runtime, and the static image is passed through.
+
+I still have a lot to learn with **{ggplot2}**, especially when it comes to rendering the graphic in dimensions needed. Overall it was a neat problem thinking about how to represent the draftboard.
+
+That wraps up this project. Thanks again to [Tan](https://twitter.com/_TanHo) for the awesome package!
