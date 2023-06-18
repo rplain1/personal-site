@@ -5,6 +5,8 @@ date: "2023-06-18"
 categories: [update]
 ---
 
+## Intorduction
+
 Hi, welcome to my site! 
 
 I recently finished grad school, moved states, and got married. Life has been hectic and not allowed time for public work. I'm hoping to be able to tackle some public projects moving forward. 
@@ -18,6 +20,8 @@ This is why I'm excited about polars. I love numpy and the optimization and synt
 At work, I use these tools to be able to work in the R ecosystem for data exploration, which works for me. Additionally, I'm able to leverage arrow to convert back to python for our team's development and machine learning environment. 
 
 My first (new) post will be detailing what that workflow looks like, and how easy it is to work within Quarto. 
+
+In the meantime, I left one (1) silly post about fantasy football. Mainly because I run that script once a year and still need it. Plus it's always neat to be able to look back and see how far you've come. 
 
 ![](thumbnail.jpg)
 
