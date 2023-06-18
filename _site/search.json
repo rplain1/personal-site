@@ -4,7 +4,7 @@
     "href": "index.html",
     "title": "personal-site",
     "section": "",
-    "text": "Post With Code\n\n\n\n\n\n\n\nnews\n\n\ncode\n\n\nanalysis\n\n\n\n\n\n\n\n\n\n\n\nJun 18, 2023\n\n\nHarlow Malloc\n\n\n\n\n\n\n  \n\n\n\n\nWelcome To My Blog\n\n\n\n\n\n\n\nnews\n\n\n\n\n\n\n\n\n\n\n\nJun 18, 2023\n\n\nRyan Plain\n\n\n\n\n\n\n  \n\n\n\n\nFantasy Football Data Wrangling for Keepers\n\n\n\n\n\n\n\nfantasy football\n\n\nanalysis\n\n\nR\n\n\n\n\n\n\n\n\n\n\n\nMar 21, 2021\n\n\nRyan Plain\n\n\n\n\n\n\nNo matching items"
+    "text": "Post With Code\n\n\n\n\n\n\n\nnews\n\n\ncode\n\n\nanalysis\n\n\n\n\n\n\n\n\n\n\n\nJun 18, 2023\n\n\nHarlow Malloc\n\n\n\n\n\n\n  \n\n\n\n\nBlog Reconstruction\n\n\n\n\n\n\n\nupdate\n\n\n\n\n\n\n\n\n\n\n\nJun 18, 2023\n\n\nRyan Plain\n\n\n\n\n\n\n  \n\n\n\n\nFantasy Football Data Wrangling for Keepers\n\n\n\n\n\n\n\nfantasy football\n\n\nanalysis\n\n\nR\n\n\n\n\n\n\n\n\n\n\n\nMar 21, 2021\n\n\nRyan Plain\n\n\n\n\n\n\nNo matching items"
   },
   {
     "objectID": "posts/post-with-code/index.html",
@@ -16,9 +16,9 @@
   {
     "objectID": "posts/welcome/index.html",
     "href": "posts/welcome/index.html",
-    "title": "Welcome To My Blog",
+    "title": "Blog Reconstruction",
     "section": "",
-    "text": "This is the first post in a Quarto blog. Welcome!\n\nSince this post doesn’t specify an explicit image, the first image in the post will be used in the listing page of posts."
+    "text": "Hi, welcome to my site!\nI recently finished grad school, moved states, and got married. Life has been hectic and not allowed time for public work. I’m hoping to be able to tackle some public projects moving forward.\nI’m particularly excited about new developments with the Apache Arrow project, and how to bridge the gap with R and Python users. I have ADHD, which means I think in a non-linear and sporadic fashion. R will always be my true love for data analysis, with non-standard evaluation and emphasis by the Posit team on designing their API’s to be a fluid conversation with data.\nI have love for python too. Python was the first language I picked up. It taught me the beauty of understanding another way of thinking (something I again rediscovered learning about octopuses). I never excelled in math in the traditional school setting, but being able to define functions and interactively test different inputs really connected me in a way that greek letters and chalkboard never could. This is especially true for linear algebra. I don’t know that I would have any understanding if it wasn’t for numpy.\nThis is why I’m excited about polars. I love numpy and the optimization and syntax, however, it did not hold up well as a pandas backend as data grew more complex. Polars offers a syntax that requires less cognitive overhead, and the backed power of arrow and rust.\nAt work, I use these tools to be able to work in the R ecosystem for data exploration, which works for me. Additionally, I’m able to leverage arrow to convert back to python for our team’s development and machine learning environment.\nMy first (new) post will be detailing what that workflow looks like, and how easy it is to work within Quarto."
   },
   {
     "objectID": "about.html",
