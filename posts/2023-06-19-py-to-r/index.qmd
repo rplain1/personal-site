@@ -3,8 +3,10 @@ title: "Arrow, Python, & R"
 author: "Ryan Plain"
 date: "2023-06-19"
 categories: [Arrow, Python, R]
-image: "thumbnail.jpeg"
+image: "arrow.png"
 ---
+
+Supporting R in a Python world, using Arrow.
 
 ## Support All Ways of Thinking
 

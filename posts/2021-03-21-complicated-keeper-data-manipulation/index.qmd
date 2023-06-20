@@ -6,7 +6,7 @@ categories: [Fantasy Football, Analysis, R]
 image: "thumbnail.png"
 ---
 
-This is a post with executable code.
+Working with **{ffscrapr}**
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
