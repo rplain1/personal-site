@@ -1,0 +1,168 @@
+---
+title: "Arrow, Python, & R"
+author: "Ryan Plain"
+date: "2023-06-19"
+categories: [Arrow, Python, R]
+image: "thumbnail.jpeg"
+---
+
+## Support All Ways of Thinking
+
+What is the reasoning behind this post? I love what I do, and can get an abundance of energy from projects that I'm working on. That being said, it's incredibly frustrating using a specific tool, when I would enjoy and work faster in another tool. 
+
+#### Insert Tired Python vs R Debate
+
+Nothing will earn an auto-mute from me on Twitter faster than seeing a Python vs R debate. They are both fantastic tools, and each have their own strengths and weaknesses. What I find most important is to focus on how they can present themselves to a particular user. A feature I see as beneficial from R could be detrimental to another user, for a myriad of reasons. 
+
+I support that setting up infrastructure which enables data professionals to use their tool of choice will help flourish the flow of ideas and analysis. Especially early on in the data exploration phase. 
+
+
+## Use Case
+
+For reasons I won't get into here, at work I needed to connect to a database in Python using existing code. From there I could stay in that environment, but I wanted to be able to work with the data in a tool that is better suited for me in R.
+
+I was familiar with the [Apache Arrow](https://arrow.apache.org/) project, and the best source I found for understanding from an R user's perspective was [This Blog Post](https://blog.djnavarro.net/posts/2022-09-09_reticulated-arrow/). Danielle, at the time of writing, is a Developer Advocate at [Voltron Data](https://voltrondata.com/). A couple of statements from their website *"Bridging Languages, Hardware, and People"* along with *"Accelerate Success with the Apache Arrow Ecosystem"*. 
+
+#### Minor Improvements
+
+Danielle covers all the foundations of [reticulate](https://rstudio.github.io/reticulate/), [Apache Arrow](https://arrow.apache.org/docs/index.html), and getting everything set up. I was able to apply it for my use case, with one drawback. The post mentions `r_to_py()`, and when I tried to use `py_to_r()`, I had no success. 
+
+## Setup
+
+#### DuckDB
+
+[DuckDB](https://duckdb.org/) is awesome. Check it out. 
+
+Again, this is outside the scope of this post. There is already an extensive amount of coverage on how the DB works, what it's best for, and examples of how to use it. I mainly chose this because of it's integration into the Apache Arrow ecosystem. 
+
+There are many different interfaces to install DuckDB found here: [DuckDB Install](https://duckdb.org/#quickinstall).
+
+#### Reticulate Config
+
+Using Reticulate, we can integrate Python and R. At work, I created an R package that would allow me to use our established pipelines in python and analyze the data in R with Reticulate. 
+
+The intended user is already someone that is familiar with R (after all what is the point of all of this if you don't already have **{dplyr}** installed?!). 
+
+```{r}
+#| warning: false
+if(!require('reticulate')) install.packages('reticulate') 
+if(!require('arrow')) install.packages('arrow') 
+if(!require('tictoc')) install.packages('tictoc') # only needed for benchmark
+
+if (!reticulate::virtualenv_exists("demo_env")) {
+  reticulate::virtualenv_create(
+    'demo_env'
+    , packages = c('duckdb'
+                   , 'pandas==2.0'
+                   , 'polars'
+                   , 'pyarrow'
+                   , 'scikit-learn'
+                   )
+    )
+}
+
+reticulate::use_virtualenv('demo_env')
+
+```
+
+## <Insert Your DB Here>
+
+As mentioned above, DuckDB is used for the toy use case. For my workflow in particular, this is where I would connect to our data with the existing Python codebase. The idea is to not re-invent the wheel for something that is already working. Rather, build a tire for that wheel that will make you go faster. 
+
+Below creates a toy dataset from Scikit-Learn datasets, [Wine](https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_wine.html).
+
+*Note: You can make this virtual environment lighter by not having to install sklearn and duckdb.*
+
+```{python}
+#| warning: false
+import duckdb 
+import pandas as pd
+import polars as pl
+import pyarrow as pa
+from sklearn import datasets
+
+data = datasets.load_wine(as_frame=True)['data']
+
+# Create a DuckDB connection
+#conn = duckdb.connect("posts/in-progress/data/demo.db")
+conn = duckdb.connect("data/demo.db")
+
+# Create toy data
+duckdb.sql("""
+DROP TABLE IF EXISTS my_table;
+CREATE TABLE my_table AS SELECT * FROM data;
+INSERT INTO my_table SELECT * FROM data;
+""")
+
+# Check that table is created
+duckdb.sql("SELECT * FROM my_table LIMIT 10;")
+```
+
+## PyArrow
+
+Now that we have a database connection, we can run SQL or use existing Python code to retrieve our data. 
+
+DuckDB and my workflow can return and Arrow object. If your use case can't and returns a pandas dataframe, you will need PyArrow to convert it. 
+
+```{python}
+
+df_pyarrow = duckdb.sql('SELECT * FROM my_table').fetch_arrow_table()
+
+# If what you are using returns pandas dataframe
+df_pyarrow_pandas = pa.Table.from_pandas(data)
+
+```
+
+## Seemless conversion to R
+
+Now the wine dataset is simple enough to work with in Python. With this size, writing a csv or parquet file is even feasible. 
+
+However, if you have data that is 10+ million rows, that isn't going to be a sustainable solution. How do you transfer the data while reducing I/O constraints as much as possible?
+
+#### Arrow
+
+I've mentioned Arrow many times throughout this post, and will continue to reference other sources for further understanding. A high level overview is that it is a standardized memory format for data, independent of language or tooling. 
+
+In the most basic use case of transferring a Pandas dataframe to R, there is a conversion of how it was stored in memory for Pandas and a mapping of how it will be stored in memory for an R `data.frame()`. To do that requires copying the data. This is called **Serialization**. 
+
+With Arrow, that definition is constant and allows for *zero-copy* reads without serialization.
+
+#### Final Product
+
+Now this part is absolutely silly, the only piece that was missing from Danielle's article was that `py_to_r()` wasn't even needed. All I had to do was assign an r variable with the Python object with Reticulate: `df <- py$df`.
+
+```{r}
+
+tictoc::tic()
+df_arrrow1 <- reticulate::py$df_pyarrow
+tictoc::toc()
+
+df_arrrow1 |> 
+  utils::head() |> 
+  dplyr::collect()
+
+# If pandas to arrow needed
+df_arrow2 <- reticulate::py$df_pyarrow_pandas
+df_arrrow1 |> 
+  utils::head() |> 
+  dplyr::collect()
+
+```
+
+---
+
+I'm off to go work in my preferred environment... 
+
+Oh also, how cool is it that the Quarto document ran both R & Python in one file?!
+
+
+
+
+
+
+
+
+
+
+
+

@@ -14,24 +14,30 @@ about:
 
 ## Bio
 
-I’m a data analyst living in Colorado Springs, currently working in product analytics for small business solutions. Previously, I worked simulating passenger and and bag traffic through airport facilities.
+I’m a data analyst living in Colorado Springs, currently working in product analytics. Previously I worked simulating passenger and and bag traffic through airport facilities.
 
 My passion is in making processes more efficient. Whether that is ETL pipelines to expose better analytics tables, visualizations that save time on investigating or filtering, or automating tedious steps in the analysis workflow. I'm a proponent of working with what tool and environment works best for you, and enjoy designing solutions to be inclusive for everyone. 
 
 In my free time I love exploring the outdoors, climbing, yoga, and spending time with my wife, dogs, and evil cat.
 
 ## Experience
-Clover | Data Analyst | October 2021 - Present
 
-Southwest Airlines | Sr. Data Analyst | April 2019 - October 2021
+Clover | Data Analyst 
+
+*Oct 2021 - Present*
+
+Southwest Airlines | Data Analyst
+
+*Apr 2019 - Oct 2021*
 
 ## Education
+
 Georgia Institute of Technology | Atlanta, GA
 
-M.S. in Analytics | Fall 2019 - Fall 2022
+**M.S. in Analytics**
 
 The University of North Texas | Denton, TX
 
-B.B.A. in Business Analytics | Fall 2016 - Fall 2017
+**B.B.A. in Business Analytics** 
 
 

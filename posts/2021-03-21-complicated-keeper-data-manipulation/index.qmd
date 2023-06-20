@@ -2,7 +2,7 @@
 title: "Fantasy Football Data Wrangling for Keepers"
 author: "Ryan Plain"
 date: "2021-03-21"
-categories: [fantasy football, analysis, R]
+categories: [Fantasy Football, Analysis, R]
 image: "thumbnail.png"
 ---
 
