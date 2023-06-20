@@ -1,5 +1,4 @@
 ---
-title: "Nothing Plain About It"
 listing:
   contents: posts
   sort: "date desc"
@@ -9,8 +8,4 @@ listing:
   filter-ui: false
 page-layout: full
 title-block-banner: true
-website:
-  navbar:
-    left:
-      - text: "Home"
 ---
