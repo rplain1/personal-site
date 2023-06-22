@@ -8,10 +8,14 @@ website:
       - about.qmd
       - icon: github
         href: https://github.com/rplain1
+      - icon: mastodon
+        href: https://fosstodon.org/@Ryanplain
 
 format:
   html:
-    theme: pulse
+    theme: 
+      light: pulse
+      dark: vapor
     css: styles.css
 
 editor: source
