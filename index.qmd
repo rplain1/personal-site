@@ -11,4 +11,4 @@ page-layout: full
 title-block-banner: true
 ---
 
-<a rel="me" href="https://fosstodon.org/@Ryanplain">Mastodon</a>
+<a rel="me" href="https://fosstodon.org/@Ryanplain"></a>
