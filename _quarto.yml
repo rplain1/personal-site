@@ -14,7 +14,7 @@ website:
 format:
   html:
     theme: 
-      light: pulse
+      light: zephyr
       dark: vapor
     css: styles.css
 
