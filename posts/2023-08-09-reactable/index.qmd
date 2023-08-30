@@ -1,0 +1,317 @@
+---
+title: "Reactable Demo"
+author: "Ryan Plain"
+date: "2023-08-29"
+categories: [Reactable, R]
+format: 
+  html:
+    page-layout: full
+---
+
+
+Hello
+
+```{r}
+#| echo: false
+#| include: false
+#| warning: false
+library(tidyverse)
+library(palmerpenguins)
+library(reactable)
+library(reactablefmtr)
+my_leagues <- ffscrapr::sleeper_userleagues("rplain", 2022)
+
+league_id <- my_leagues %>% 
+  filter(league_name == 'The Hot Boyz') %>% 
+  pull(league_id)
+
+
+my_league <- ffscrapr::ff_connect(platform = 'sleeper', 
+                                  season = 2022, 
+                                  league_id = league_id)
+
+
+draft_picks <- ffscrapr::ff_draft(my_league) 
+
+transactions <- ffscrapr::ff_transactions(my_league)
+franchises <- ffscrapr::ff_franchises(my_league)
+
+starters <- ffscrapr::ff_starters(my_league)
+
+schedule <- ffscrapr::ff_schedule(my_league, 2022)
+
+orange_pal <- function(x) rgb(colorRamp(c('white', 'white', 'lightblue', 'blue'))(x), maxColorValue = 255)
+red_pal <- function(x) rgb(colorRamp(c("white","white","pink", "red"))(x), maxColorValue = 255)
+blue_pal <- function(x) rgb(colorRamp(c('white', 'white', 'lightblue',"cyan"))(x), maxColorValue = 255)
+
+franchises <- franchises |> 
+  mutate(
+    franchise_name = c(
+      'Ryan', 'Mike', 'Mitchell', 'Ben', 'Zach','Cody', 'Nick', 'Jacob', 'Wayne', 'Tony'
+    )
+  )
+
+rankings <- schedule |> 
+  filter(week <= 14) |> 
+  left_join(franchises) |> 
+  group_by(week, franchise_name) |> 
+  summarise(
+    w = sum(result == 'W'),
+    pf = sum(franchise_score),
+    .groups = 'drop'
+  ) |> 
+  group_by(franchise_name) |> 
+  arrange(week) |> 
+  mutate(
+    cum_w = cumsum(w),
+    cum_pf = cumsum(pf)
+  ) |> 
+  ungroup() |> 
+  group_by(week) |> 
+  arrange(-cum_w, -cum_pf) |> 
+  mutate(
+    rank = row_number()
+  ) |> 
+  arrange(week) |> 
+  ungroup() |> 
+  mutate(week=paste0('W', week)) |> 
+  pivot_wider(
+    id_cols = franchise_name,
+    names_from = week,
+    values_from = rank
+  )
+
+
+df2 <- schedule |> 
+  filter(week <= 14) |> 
+  left_join(franchises) |> 
+  mutate(score_diff = franchise_score - opponent_score) |> 
+  group_by(franchise_name)  |> 
+  summarise(
+    score_diff = list(score_diff),
+    pf = sum(franchise_score),
+    pa = sum(opponent_score),
+    w = sum(result == 'W')
+    ) |> 
+  left_join(rankings) |> 
+  #select(franchise_name, w, rank, score_diff, pf, pa) |> 
+  arrange(-w, -pf) |> 
+  mutate(
+    ranking = row_number()
+  ) |> 
+  select(
+    ranking, franchise_name, w, pf, pa, score_diff, starts_with('W')
+  )
+
+
+
+
+```
+
+```{r}
+#| echo: false
+
+reactable(
+  df2,
+  highlight = TRUE,
+  theme = reactablefmtr::fivethirtyeight(),
+  columnGroups = list(
+    colGroup(
+      name = "Points", 
+      columns = c('score_diff', 'pf', 'pa')
+      ),
+    colGroup(
+      name = 'Standings',
+      columns = c(paste0('W', 1:14))
+    )
+    ),
+  columns = list(
+    ranking = colDef(
+      name = 'Ranking',
+      width = 50
+    ),
+    franchise_name = colDef(
+      width = 100,
+      name = 'Name'
+    ),
+    w = colDef(
+      align = 'left',
+      name = 'Wins',
+      width = 200,
+      cell = icon_assign(df2, icon = 'crown', fill_color = 'gold', empty_opacity = 0)
+    ),
+    pf = colDef(
+      width = 70,
+      format = colFormat(digits = 1),
+      name = 'PF',
+      align = 'center',
+      style = function(value) {
+        normalized <- (value - min(df2$pf)) / (max(df2$pf) - min(df2$pf))
+        list(background = blue_pal(normalized))
+      }
+    ),
+    pa = colDef(
+      width = 70,
+      align = 'center',
+      format = colFormat(digits = 1),
+      name = 'PA',
+      style = function(value) {
+        normalized <- (value - min(df2$pa)) / (max(df2$pa) - min(df2$pa))
+        list(background = red_pal(normalized))
+      }
+    ),
+    score_diff = colDef(
+      align = 'center',
+      name = 'Score Differential',
+      width = 300,
+      cell = function(value, index) {
+      sparkline::sparkline(df2$score_diff[[index]], type = 'bar', width = 200, height = 40, barWidth = 200, barSpacing = 200)
+        },
+      ),
+    W1 = colDef(
+      width = 45,
+        cell = pill_buttons(
+          data = df2,
+          box_shadow = TRUE,
+          colors = c('gold', '#C0C0C0', '#b08d57', 'black', 'black',
+                           'black', 'black', 'black', 'pink', 'red')
+        )
+      
+    ),
+    W2 = colDef(
+      width = 45,
+        cell = pill_buttons(
+          data = df2,
+          box_shadow = TRUE,
+          colors = c('gold', '#C0C0C0', '#b08d57', 'black', 'black',
+                           'black', 'black', 'black', 'pink', 'red')
+        )
+      
+    ),
+    W3 = colDef(
+      width = 45,
+        cell = pill_buttons(
+          data = df2,
+          box_shadow = TRUE,
+          colors = c('gold', '#C0C0C0', '#b08d57', 'black', 'black',
+                           'black', 'black', 'black', 'pink', 'red')
+        )
+      
+    ),
+    W4 = colDef(
+      width = 45,
+        cell = pill_buttons(
+          data = df2,
+          box_shadow = TRUE,
+          colors = c('gold', '#C0C0C0', '#b08d57', 'black', 'black',
+                           'black', 'black', 'black', 'pink', 'red')
+        )
+      
+    ),
+    W5 = colDef(
+      width = 45,
+        cell = pill_buttons(
+          data = df2,
+          box_shadow = TRUE,
+          colors = c('gold', '#C0C0C0', '#b08d57', 'black', 'black',
+                           'black', 'black', 'black', 'pink', 'red')
+        )
+      
+    ),
+    W6 = colDef(
+      width = 45,
+        cell = pill_buttons(
+          data = df2,
+          box_shadow = TRUE,
+          colors = c('gold', '#C0C0C0', '#b08d57', 'black', 'black',
+                           'black', 'black', 'black', 'pink', 'red')
+        )
+      
+    ),
+    W7 = colDef(
+      width = 45,
+        cell = pill_buttons(
+          data = df2,
+          box_shadow = TRUE,
+          colors = c('gold', '#C0C0C0', '#b08d57', 'black', 'black',
+                           'black', 'black', 'black', 'pink', 'red')
+        )
+      
+    ),
+    W8 = colDef(
+      width = 45,
+        cell = pill_buttons(
+          data = df2,
+          box_shadow = TRUE,
+          colors = c('gold', '#C0C0C0', '#b08d57', 'black', 'black',
+                           'black', 'black', 'black', 'pink', 'red')
+        )
+      
+    ),
+    W9 = colDef(
+      width = 45,
+        cell = pill_buttons(
+          data = df2,
+          box_shadow = TRUE,
+          colors = c('gold', '#C0C0C0', '#b08d57', 'black', 'black',
+                           'black', 'black', 'black', 'pink', 'red')
+        )
+      
+    ),
+    W10 = colDef(
+      width = 45,
+        cell = pill_buttons(
+          data = df2,
+          box_shadow = TRUE,
+          colors = c('gold', '#C0C0C0', '#b08d57', 'black', 'black',
+                           'black', 'black', 'black', 'pink', 'red')
+        )
+      
+    ),
+    W11 = colDef(
+      width = 45,
+        cell = pill_buttons(
+          data = df2,
+          box_shadow = TRUE,
+          colors = c('gold', '#C0C0C0', '#b08d57', 'black', 'black',
+                           'black', 'black', 'black', 'pink', 'red')
+        )
+      
+    ),
+    W12 = colDef(
+      width = 45,
+        cell = pill_buttons(
+          data = df2,
+          box_shadow = TRUE,
+          colors = c('gold', '#C0C0C0', '#b08d57', 'black', 'black',
+                           'black', 'black', 'black', 'pink', 'red')
+        )
+      
+    ),
+    W13 = colDef(
+      width = 45,
+        cell = pill_buttons(
+          data = df2,
+          box_shadow = TRUE,
+          colors = c('gold', '#C0C0C0', '#b08d57', 'black', 'black',
+                           'black', 'black', 'black', 'pink', 'red')
+        )
+      
+    ),
+    W14 = colDef(
+      width = 45,
+        cell = pill_buttons(
+          data = df2,
+          box_shadow = TRUE,
+          colors = c('gold', '#C0C0C0', '#b08d57', 'black', 'black',
+                           'black', 'black', 'black', 'pink', 'red')
+        )
+      
+    )
+    )
+)
+    
+  
+
+```
+

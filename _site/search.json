@@ -4,7 +4,7 @@
     "href": "index.html",
     "title": "Nothing Plain About It",
     "section": "",
-    "text": "Arrow, Python, & R\n\n\n\n\n\n\n\nArrow\n\n\nPython\n\n\nR\n\n\n\n\n\n\n\n\n\n\n\nJun 19, 2023\n\n\nRyan Plain\n\n\n\n\n\n\n  \n\n\n\n\nBlank Canvas\n\n\n\n\n\n\n\n\n\n\n\n\nJun 18, 2023\n\n\nRyan Plain\n\n\n\n\n\n\n  \n\n\n\n\nFantasy Football Data Wrangling for Keepers\n\n\n\n\n\n\n\nFantasy Football\n\n\nAnalysis\n\n\nR\n\n\n\n\n\n\n\n\n\n\n\nMar 21, 2021\n\n\nRyan Plain\n\n\n\n\n\n\nNo matching items"
+    "text": "Reactable Demo\n\n\n\n\n\n\n\nReactable\n\n\nR\n\n\n\n\n\n\n\n\n\n\n\n\nAug 29, 2023\n\n\nRyan Plain\n\n\n\n\n\n\n  \n\n\n\n\nArrow, Python, & R\n\n\n\n\n\n\n\nArrow\n\n\nPython\n\n\nR\n\n\n\n\n\n\n\n\n\n\n\nJun 19, 2023\n\n\nRyan Plain\n\n\n\n\n\n\n  \n\n\n\n\nBlank Canvas\n\n\n\n\n\n\n\n\n\n\n\n\nJun 18, 2023\n\n\nRyan Plain\n\n\n\n\n\n\n  \n\n\n\n\nFantasy Football Data Wrangling for Keepers\n\n\n\n\n\n\n\nFantasy Football\n\n\nAnalysis\n\n\nR\n\n\n\n\n\n\n\n\n\n\n\nMar 21, 2021\n\n\nRyan Plain\n\n\n\n\n\n\nNo matching items"
   },
   {
     "objectID": "posts/post-with-code/index.html",
@@ -222,5 +222,12 @@
     "title": "Arrow, Python, & R",
     "section": "Support All Ways of Thinking",
     "text": "Support All Ways of Thinking\nWhat is the reasoning behind this post? I love what I do, and can get an abundance of energy from projects that I’m working on. That being said, it’s incredibly frustrating using a specific tool, when I would enjoy and work faster in another tool.\n\nInsert Tired Python vs R Debate\nNothing will earn an auto-mute from me on Twitter faster than seeing a Python vs R debate. They are both fantastic tools, and each have their own strengths and weaknesses. What I find most important is to focus on how they can present themselves to a particular user. A feature I see as beneficial from R could be detrimental to another user, for a myriad of reasons.\nI support that setting up infrastructure which enables data professionals to use their tool of choice will help flourish the flow of ideas and analysis. Especially early on in the data exploration phase."
+  },
+  {
+    "objectID": "posts/2023-08-09-reactable/index.html",
+    "href": "posts/2023-08-09-reactable/index.html",
+    "title": "Reactable Demo",
+    "section": "",
+    "text": "Hello"
   }
 ]
