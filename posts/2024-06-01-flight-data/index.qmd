@@ -1,0 +1,402 @@
+---
+title: "Modeling Airports"
+author: "Ryan Plain"
+date: "2024-06-01"
+categories: [Flights, R]
+description: "Begin simmulating passenger and bag traffic"
+image: "image.png"
+format: 
+  html: 
+    code-fold: true
+    code-summary: "Show the code"
+    df-print: kable
+
+---
+
+## Aviation and Simulation
+
+I was once asked during my time working with Southwest Airlines how I got into aviation. At the time I never thought of myself associated with aviation, only data. After leaving, I soon realized that I loved aviation and working for airlines. Okay, maybe not all of the emissions, harm to environment, and how they probably lobby against trains... but I do love all the applications of simulation! Luckily there is the [nycflights13](https://github.com/tidyverse/nycflights13) publicly available to work with.
+
+Everything I will discuss is well known and industry standard. Transportation Security Administration (TSA) and the International Association of Baggage System Companies (IABSC) have a lot of this documented, which you can read about [here](https://iabsc.org/wp-content/uploads/2021/04/Planning-Guidelines-and-Design-Standards-for-Checked-Baggage-Inspection-Systems-V7.0.pdf). 
+
+**NOTE:** I intend to have a series of different topics in simulation, with this being a foundation introduction. When I refer to things out of scope, my plan is to cover it in a later post. Simulation covers topics of uncertainty while also providing data engineering challenges due to the size of data generated. Maybe we can leverage our beloved DuckDB in a future post too. 
+Let's get to started! 
+
+### Flight Schedule
+
+The foundation for anything we do is the flight schedule. Here is a snapshot of the flight schedule available from the nycflights13 package. 
+
+```{r}
+#| warning: false
+
+library(tidyverse)
+library(nycflights13)
+library(reactable)
+
+
+flights |> 
+  head()
+```
+<br> 
+
+##### June 27, 2013
+
+We have flight counts from every airline for the 3 New York airports throughout 2013. I picked flights from my birthday, June 27, to show flight counts for each station. Certain carriers have a dominant market share, and some carriers do not utilize the station at all. 
+
+```{r}
+
+june27_flights <- flights |> 
+  mutate(dep_dttm = time_hour + minutes(minute)) |> 
+  filter(day == 27 , month == 6)
+
+june27_flights |> 
+  count(carrier, origin) |> 
+  pivot_wider(id_cols = carrier, names_from = origin, values_from = n) |> 
+  mutate(across(everything(), \(x) replace_na(x, 0))) |> 
+  arrange(-LGA) |> 
+  reactable(
+    bordered = TRUE
+  )
+
+
+
+```
+
+### Understanding the Arrival Curve
+
+An arrival curve represents the distribution of passenger arrivals before the departure time. Several factors influence how early or close to departure passengers arrive, but these can generally be categorized into three main distributions:
+
+- **Domestic Before 9am** - Domestic flights departing before 9am have tighter distributions, as passengers find it harder to arrive extremely early.
+- **Domestic After 9am** - Off-peak domestic flights (departing during the day or evening) allow passengers ample time to arrive early.
+- **International** - Non-domestic flights, often involving more luggage, customs, and higher stress levels, typically see passengers arriving much earlier.
+
+The [Planning Guidelines and Design Standards for TSA](https://iabsc.org/wp-content/uploads/2021/04/Planning-Guidelines-and-Design-Standards-for-Checked-Baggage-Inspection-Systems-V7.0.pdf) provide an arrival curve on page 91. As an LLM / AI pessimist, I have to give credit when it is due. To get the arrival curve I copied the table values from the pdf and asked OpenAI's chatGPT to provide code to replicate the table, which worked seamlessly. 
+
+The comparison of the three distributions reveals distinct patterns. Domestic flights have a mode around an hour before departure. In contrast, international flights show passengers arriving much earlier, with a longer tail towards earlier arrivals. 
+
+```{r}
+
+station_colors <- c('#e41a1c', '#377eb8', '#4daf4a')
+station_colors <- c('#66c2a5', '#fc8d62', '#8da0cb')
+
+df <- tibble(
+  minutes_prior = rev(c(">240", "240", "230", "220", "210", "200", "190", "180", "170", "160", "150", "140", "130", "120", "110", "100", "90", "80", "70", "60", "50", "40", "30", "20", "10")),
+  peak_domestic_8am = c(0.80, 0.26, 0.42, 1.10, 3.08, 6.71, 10.34, 12.87, 13.54, 
+                        12.79, 11.21, 8.70, 6.13, 4.11, 2.66, 1.69, 1.10, 0.72, 
+                        0.46, 0.32, 0.22, 0.15, 0.11, 0.08, 0.41),
+  off_peak_domestic = c(0.06, 0.30, 0.48, 0.98, 2.10, 4.03, 6.19, 8.16, 9.59, 
+                       10.25, 10.08, 9.25, 7.95, 6.44, 5.09, 3.94, 3.06, 2.36, 
+                       1.83, 1.43, 1.14, 0.92, 0.74, 0.62, 3.01),
+  international = c(0.22, 0.11, 0.15, 0.28, 0.61, 1.32, 3.08, 5.13, 7.37, 
+                   8.93, 10.28, 10.69, 9.75, 8.40, 7.12, 5.74, 4.75, 3.81, 
+                   2.92, 2.17, 1.62, 1.19, 0.90, 0.71, 2.77)
+)
+
+arrival_curve <- df |> 
+    mutate(x = str_extract(minutes_prior, '\\d+') |> as.numeric()) |> 
+  group_by(minutes_prior = x) |> 
+  summarise(
+    across(everything(), sum)
+  ) |> 
+  select(-x) |> 
+  pivot_longer(-minutes_prior) |> 
+  mutate(value = value / 100)
+
+arrival_curve |> 
+  ggplot(aes(minutes_prior, value, color = name)) +
+  geom_point() +
+  geom_line(linewidth = 2) +
+  labs(
+    title = 'Arrival Curve',
+    subtitle = 'The distribution of minutes prior to departure that a passenger will arrive',
+    x = 'Minutes Prior',
+    y = NULL,
+    color = NULL,
+    fill = NULL,
+  ) +
+  scale_y_continuous(labels = scales::percent_format()) +
+  scale_x_reverse() +
+  theme(legend.position = 'top') 
+
+```
+
+### Simulating Arrivals from the Distribution
+
+Our goal is to simulate arrivals from this distribution to optimize airport operations and planning. The data is binned into 10-minute intervals, which is appropriate for many use cases. 
+
+To simulate arrivals:
+
+1. **Sample from Bins:** Using the table of percentages of passengers arriving in each 10-minute bin, we can sample with replacement from the minutes_prior column, guided by the probabilities from the arrival curve.
+2. **Kernel Density Estimate (KDE):** Calculate a KDE to create a continuous distribution.
+
+**Note:** The KDE may produce some negative values. Although these occurrences are rare, negative times are not possible. Therefore, I filtered out rows with `minutes_prior < 0` and recalculated the percentages, dividing by the sum of all valid percentages for that group."
+
+
+```{r}
+
+set.seed(0527)
+
+arrival_samples <- arrival_curve |> 
+  group_by(name) |> 
+  nest() |> 
+  ungroup() |> 
+  mutate(
+    samples = map(.x = data, ~sample(.x$minutes_prior, 1000, replace = TRUE, prob = .x$value))
+  ) |> 
+  mutate(
+    d = map(samples, ~density(.x)),
+    density_x = map(d, "x"),
+    density_y = map(d, "y"),
+    dens = tibble(dens_x = map(d, "x"), dens_y = map(d, "y"))
+  ) |> 
+  ungroup() 
+
+arrival_kde <- arrival_samples |> 
+  select(name, starts_with('density')) |> 
+  unnest(c(density_x, density_y)) |> 
+  filter(density_x > 0) |> 
+  group_by(name) |> 
+  mutate(y = density_y / sum(density_y)) |>
+  select(name, minutes_prior = density_x, perc = y) |> 
+  ungroup()
+
+arrival_kde |> 
+  ggplot(aes(minutes_prior, perc, color = name)) +
+  geom_line(linewidth = 2) + 
+  labs(
+    title = 'KDE of Arrival Curve',
+    x = 'Minutes Prior',
+    y = NULL,
+    color = NULL,
+    fill = NULL,
+  ) +
+  scale_y_continuous(labels = scales::percent_format()) +
+  scale_x_reverse() + 
+  theme(legend.position = 'top')
+
+
+```
+
+
+### Load Factors
+
+In aviation planning, estimating passenger numbers for a flight involves considering two primary factors:
+
+- **Load Factor**: This refers to the percentage of seats occupied on a flight.
+- **Originating Factor**: This factor indicates the proportion of passengers whose journey originates at a particular station. 
+
+For calculation purposes, let's consider an example with 100 seats available on a flight, an 80% load factor, and 90% of passengers originating from the local station.
+
+The formula for deriving the expected number of passengers is:
+
+*Expected Passengers = Seats × Load Factor × Originating Factor*
+
+Substituting the given values into the formula:
+
+*Expected Passengers = 100 × 0.80 × 0.90*
+
+*Expected Passengers = 72*
+
+So, in this scenario, we would expect approximately 72 passengers for the flight.
+
+### Bag Factors
+
+Typically, airlines maintain their own datasets on various factors affecting flight operations. These include market dynamics, flight length, seasonality components, and other variables that influence load factors.
+
+For this, we will use the table provided in the [PGDS Study](https://iabsc.org/wp-content/uploads/2021/04/Planning-Guidelines-and-Design-Standards-for-Checked-Baggage-Inspection-Systems-V7.0.pdf) on page 395. This gives a breakdown of the average load factor for each flight. Additionally it contains two other factors used later on, which are:
+
+- **Checked Bag Factor**: This represents the percentage of passengers checking bags.
+- **Avg Number of Bags**: This figure indicates the expected number of bags per passenger after accounting for the previously mentioned load factors.
+
+We'll use this table generate more sampling data. 
+
+```{r}
+# Define the data
+operator_name <- c("Continental Airlines", "Alaska Airlines", "America West Airlines (domestic destinations)", 
+                   "United Airlines", "XX Airlines", "SkyWest Airlines", "American Airlines", 
+                   "JetBlue Airways", "Delta Air Lines", "America West Airlines (Mexican destinations)", 
+                   "Aloha Airlines", "Horizon Air", "Mesa Airlines", "ATA Airlines", 
+                   "United Express/SkyWest Airlines")
+operator_code <- c("CO", "AS", "HP", "UA", "XX", "OO", "AA", "B6", "DL", "HP", "AQ", "QX", "YV", "TZ", "A296")
+load_factor <- c(96, 98, 83, 85, 77, 91, 98, 90, 89, 83, 85, 60, 85, 85, 91)
+
+percent_of_parties_checking_pre_gate <- c(75, 80, 84, 45, 34, 79, 90, 90, 92, 100, 97, 77, 51, 64, 66)
+average_number_of_checked_bags_per_passenger <- c(0.79, 0.71, 0.68, 0.87, 0.92, 0.91, 0.71, 0.90, 0.98, 1.30, 1.30, 0.95, 0.96, 1.23, 0.87)
+
+# Create the data frame
+operator_data <- tibble(airline = operator_name,
+                            carrier = operator_code,
+                            load_factor = load_factor,
+                            check_bag_factor = percent_of_parties_checking_pre_gate,
+                            avg_num_bags = average_number_of_checked_bags_per_passenger) |> 
+  mutate(across(contains('factor'), \(x) x/100))
+
+operator_data
+
+```
+
+### Deriving Passenger Numbers
+
+In this section, we'll start by modeling passenger numbers under the assumption that all passengers are local. While this assumption may oversimplify reality, it serves as a conservative estimate for our analysis. With our data focusing on New York, US stations, this follows certain characteristics of domestic flights, particularly their tendency to follow daylight and fly from east to west. 
+
+Domestic flights originating from the East Coast have high originating factors due to the network's construction. 
+
+Once we establish the basics of passenger modeling under this assumption, we can explore alternative solutions to refine our approach and accommodate more complex scenarios.
+
+#### Steps:
+
+1. Join seats of aircraft and factors to flight schedule
+2. Determine passengers for each flight
+3. Distribute the passengers across generic arrival curve (10 minute increment)
+
+
+The arrival curve used here is just the 10 minute increment arrival curve provided, and airports is part of the nycflights13 package. We will use this to determine domestic/international stations. The result is the flight schedule with an arrival curve joined to each row. 
+
+```{r}
+
+arrival_join_10_min <- arrival_curve |> 
+  pivot_wider(names_from = minutes_prior, values_from = value) |> 
+  mutate(
+    peak = name == 'peak_domestic_8am',
+    domestic = !str_detect(name, 'international')
+    ) 
+
+airports <- airports |> 
+  mutate(domestic = str_detect(tzone, 'America'))
+
+june27_base <- june27_flights |> 
+  left_join(planes |> select(tailnum, seats), by = c('tailnum')) |> 
+  left_join(operator_data, by = c('carrier')) |> 
+  left_join(airports, by =c('dest' = 'faa')) |> 
+  mutate(
+    peak = sched_dep_time <= 800, 
+    # use median values for missing airline data
+    across(c(contains('factor'), avg_num_bags ), \(x) replace_na(x, median(x, na.rm = TRUE)))
+  ) |> 
+  mutate(
+    passengers = round(seats * load_factor)
+  ) |> 
+  left_join(
+    # 10 minute arrival curve
+    arrival_join_10_min,
+    by = c('peak', 'domestic')
+  ) |> 
+  select(carrier, origin, dest, dep_dttm, passengers, `10`:`240`)
+
+
+june27_base |> 
+  head()
+
+
+```
+
+### Distribute demand
+
+For the simple approach, all we will do is distribute the passenger vector across the columns of the arrival curve percentages. 
+
+#### Steps:
+
+1. Multiply passenger column by all of the arrival curve columns
+2. Reshape the dataframe to a longer format so that each row represents a 10-minute interval per flight.
+3. Subtract that minute value from the departure datetime
+4. Group by the new model time and aggregate the sum of passengers. 
+
+**Note:** The departure times are in minute granularity. We group them into 10-minute bins to align with the basic arrival curve. 
+
+```{r}
+#| warning: false
+
+june27_long <- june27_base |> 
+  mutate(dep_dttm = if_else(minute(dep_dttm) %% 10 != 0 , dep_dttm - minutes(minute(dep_dttm) %% 10), dep_dttm)) |> 
+  mutate(across(`10`:`240`, \(x) x * passengers)) |> 
+  pivot_longer(cols = `10`:`240`, names_to = 'minutes_prior', values_to = 'exp_passengers') |> 
+  mutate(
+    model_time = dep_dttm - minutes(minutes_prior)
+  )
+
+june27_long |> 
+  head()
+
+june27_long |> 
+  group_by(origin, model_time) |> 
+  summarise(
+    expected_passengers = sum(exp_passengers, na.rm = TRUE),
+    .groups = 'drop'
+  ) |> 
+  ggplot(aes(model_time, expected_passengers)) +
+  geom_line(linewidth = 2, aes(color = origin)) +
+  facet_wrap(~origin, ncol = 1) +
+  labs(
+    title = 'Expected Passengers',
+    x = "Time",
+    y = "Expected passengers"
+  ) +
+  scale_color_manual(values = station_colors) +
+  theme(legend.position = 'none')
+
+```
+
+
+#### A better visualizaiton
+
+To see the lagging effect of passengers arrivals relative to the departure time, you can visualize the passenger demand profile against the distribution of flights throughout the day. 
+
+```{r}
+#| warning: false
+
+
+june27_long |> 
+  group_by(origin, model_time) |> 
+  summarise(
+    expected_passengers = sum(exp_passengers, na.rm = TRUE),
+    .groups = 'drop'
+  ) |> 
+  left_join(
+    june27_base |>   
+      mutate(dep_dttm = if_else(minute(dep_dttm) %% 10 != 0 , dep_dttm - minutes(minute(dep_dttm) %% 10), dep_dttm)) |> 
+      count(dep_dttm, origin),
+    by = c('model_time' = 'dep_dttm', 'origin')
+  ) |> 
+  mutate(n = n * 50) |> 
+  #filter(origin == 'LGA') |> 
+  ggplot(aes(model_time, color = origin, fill = origin)) +
+  geom_col(aes(y=n), alpha = 0.26) +
+  geom_line(aes(y=expected_passengers), linewidth = 2) +
+  scale_y_continuous(sec.axis = sec_axis(~./50, name = "Flight Count")) +
+  facet_wrap(~origin, ncol = 1) +
+  labs(
+    title = 'Distirbution of Passengers and Flights throughout the day',
+    y = 'Expected Passenger Demand',
+    x = 'Time',
+    color = NULL,
+    fill = NULL
+  ) +
+  theme(
+    legend.position = 'none',
+    plot.title = element_text(face = 'bold', size = 16)
+  ) +
+  scale_color_manual(values = station_colors)+
+  scale_fill_manual(values = station_colors)
+
+
+
+```
+
+### This is great, but where is the simulation
+
+What we did is the bare minimum to model passengers, and later bags, throughout the day. This approach is likely used in the PGDS study, and linear calculations are in my opinion overused in modeling facilities today. 
+
+#### What approach should be used? 
+
+Every input can be sampled and simulated, and there are tradeoffs to consider with each approach. Using linear calculations is straightforward; for instance, you can easily explain that a flat load factor was used. However, this method falls short when trying to understand tail-end outcomes or disaster situations.
+
+We'll start by simulating passengers from the arrival curve in the next post. 
+
+
+
+
+
+
+
+
+
