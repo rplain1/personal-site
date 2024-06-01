@@ -2,6 +2,7 @@
   {
     "listing": "/index.html",
     "items": [
+      "/posts/2024-06-01-flight-data/index.html",
       "/posts/2023-06-19-py-to-r/index.html",
       "/posts/2023-06-18-blog-reconstruction/index.html",
       "/posts/2021-03-21-complicated-keeper-data-manipulation/index.html"

@@ -1,0 +1,1585 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.3.450">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="author" content="Ryan Plain">
+<meta name="dcterms.date" content="2024-06-01">
+<meta name="description" content="Begin simmulating passenger and bag traffic">
+
+<title>Nothing Plain About It - Modeling Airports</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="../../site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="../../site_libs/quarto-nav/headroom.min.js"></script>
+<script src="../../site_libs/clipboard/clipboard.min.js"></script>
+<script src="../../site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="../../site_libs/quarto-search/fuse.min.js"></script>
+<script src="../../site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="../../">
+<script src="../../site_libs/quarto-html/quarto.js"></script>
+<script src="../../site_libs/quarto-html/popper.min.js"></script>
+<script src="../../site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="../../site_libs/quarto-html/anchor.min.js"></script>
+<link href="../../site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="../../site_libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" class="quarto-color-scheme" id="quarto-text-highlighting-styles">
+<link href="../../site_libs/quarto-html/quarto-syntax-highlighting-dark.css" rel="prefetch" class="quarto-color-scheme quarto-color-alternate" id="quarto-text-highlighting-styles">
+<script src="../../site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="../../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="../../site_libs/bootstrap/bootstrap.min.css" rel="stylesheet" class="quarto-color-scheme" id="quarto-bootstrap" data-mode="light">
+<link href="../../site_libs/bootstrap/bootstrap-dark.min.css" rel="prefetch" class="quarto-color-scheme quarto-color-alternate" id="quarto-bootstrap" data-mode="dark">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 20,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+
+<script src="../../site_libs/core-js-2.5.3/shim.min.js"></script>
+<script src="../../site_libs/react-18.2.0/react.min.js"></script>
+<script src="../../site_libs/react-18.2.0/react-dom.min.js"></script>
+<script src="../../site_libs/reactwidget-1.0.0/react-tools.js"></script>
+<script src="../../site_libs/htmlwidgets-1.6.2/htmlwidgets.js"></script>
+<link href="../../site_libs/reactable-0.4.4/reactable.css" rel="stylesheet">
+<script src="../../site_libs/reactable-binding-0.4.4/reactable.js"></script>
+
+
+<link rel="stylesheet" href="../../styles.css">
+</head>
+
+<body class="nav-fixed fullcontent">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg navbar-dark ">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container">
+    <a class="navbar-brand" href="../../index.html">
+    <span class="navbar-title">Nothing Plain About It</span>
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="Search"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll ms-auto">
+  <li class="nav-item">
+    <a class="nav-link" href="../../about.html" rel="" target="">
+ <span class="menu-text">About</span></a>
+  </li>  
+  <li class="nav-item compact">
+    <a class="nav-link" href="https://github.com/rplain1" rel="" target=""><i class="bi bi-github" role="img">
+</i> 
+ <span class="menu-text"></span></a>
+  </li>  
+  <li class="nav-item compact">
+    <a class="nav-link" href="https://fosstodon.org/@Ryanplain" rel="" target=""><i class="bi bi-mastodon" role="img">
+</i> 
+ <span class="menu-text"></span></a>
+  </li>  
+</ul>
+            <div class="quarto-navbar-tools">
+  <a href="" class="quarto-color-scheme-toggle quarto-navigation-tool  px-1" onclick="window.quartoToggleColorScheme(); return false;" title="Toggle dark mode"><i class="bi"></i></a>
+</div>
+          </div> <!-- /navcollapse -->
+      </div> <!-- /container-fluid -->
+    </nav>
+</header>
+<!-- content -->
+<header id="title-block-header" class="quarto-title-block default page-columns page-full">
+  <div class="quarto-title-banner page-columns page-full">
+    <div class="quarto-title column-body">
+      <h1 class="title">Modeling Airports</h1>
+                  <div>
+        <div class="description">
+          Begin simmulating passenger and bag traffic
+        </div>
+      </div>
+                          <div class="quarto-categories">
+                <div class="quarto-category">Flights</div>
+                <div class="quarto-category">R</div>
+              </div>
+                  </div>
+  </div>
+    
+  
+  <div class="quarto-title-meta">
+
+      <div>
+      <div class="quarto-title-meta-heading">Author</div>
+      <div class="quarto-title-meta-contents">
+               <p>Ryan Plain </p>
+            </div>
+    </div>
+      
+      <div>
+      <div class="quarto-title-meta-heading">Published</div>
+      <div class="quarto-title-meta-contents">
+        <p class="date">June 1, 2024</p>
+      </div>
+    </div>
+    
+      
+    </div>
+    
+  
+  </header><div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+<!-- margin-sidebar -->
+    
+<!-- main -->
+<main class="content quarto-banner-title-block" id="quarto-document-content">
+
+
+
+
+<section id="aviation-and-simulation" class="level2">
+<h2 class="anchored" data-anchor-id="aviation-and-simulation">Aviation and Simulation</h2>
+<p>I was once asked during my time working with Southwest Airlines how I got into aviation. At the time I never thought of myself associated with aviation, only data. After leaving, I soon realized that I loved aviation and working for airlines. Okay, maybe not all of the emissions, harm to environment, and how they probably lobby against trains… but I do love all the applications of simulation! Luckily there is the <a href="https://github.com/tidyverse/nycflights13">nycflights13</a> publicly available to work with.</p>
+<p>Everything I will discuss is well known and industry standard. Transportation Security Administration (TSA) and the International Association of Baggage System Companies (IABSC) have a lot of this documented, which you can read about <a href="https://iabsc.org/wp-content/uploads/2021/04/Planning-Guidelines-and-Design-Standards-for-Checked-Baggage-Inspection-Systems-V7.0.pdf">here</a>.</p>
+<p><strong>NOTE:</strong> I intend to have a series of different topics in simulation, with this being a foundation introduction. When I refer to things out of scope, my plan is to cover it in a later post. Simulation covers topics of uncertainty while also providing data engineering challenges due to the size of data generated. Maybe we can leverage our beloved DuckDB in a future post too. Let’s get to started!</p>
+<section id="flight-schedule" class="level3">
+<h3 class="anchored" data-anchor-id="flight-schedule">Flight Schedule</h3>
+<p>The foundation for anything we do is the flight schedule. Here is a snapshot of the flight schedule available from the nycflights13 package.</p>
+<div class="cell">
+<details>
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(tidyverse)</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(nycflights13)</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(reactable)</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>flights <span class="sc">|&gt;</span> </span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">head</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output-display">
+<div class="kable-table">
+<table class="table table-sm table-striped small">
+<colgroup>
+<col style="width: 2%">
+<col style="width: 3%">
+<col style="width: 2%">
+<col style="width: 5%">
+<col style="width: 8%">
+<col style="width: 5%">
+<col style="width: 5%">
+<col style="width: 8%">
+<col style="width: 5%">
+<col style="width: 4%">
+<col style="width: 4%">
+<col style="width: 4%">
+<col style="width: 4%">
+<col style="width: 2%">
+<col style="width: 5%">
+<col style="width: 5%">
+<col style="width: 2%">
+<col style="width: 4%">
+<col style="width: 11%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: right;">year</th>
+<th style="text-align: right;">month</th>
+<th style="text-align: right;">day</th>
+<th style="text-align: right;">dep_time</th>
+<th style="text-align: right;">sched_dep_time</th>
+<th style="text-align: right;">dep_delay</th>
+<th style="text-align: right;">arr_time</th>
+<th style="text-align: right;">sched_arr_time</th>
+<th style="text-align: right;">arr_delay</th>
+<th style="text-align: left;">carrier</th>
+<th style="text-align: right;">flight</th>
+<th style="text-align: left;">tailnum</th>
+<th style="text-align: left;">origin</th>
+<th style="text-align: left;">dest</th>
+<th style="text-align: right;">air_time</th>
+<th style="text-align: right;">distance</th>
+<th style="text-align: right;">hour</th>
+<th style="text-align: right;">minute</th>
+<th style="text-align: left;">time_hour</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: right;">2013</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">517</td>
+<td style="text-align: right;">515</td>
+<td style="text-align: right;">2</td>
+<td style="text-align: right;">830</td>
+<td style="text-align: right;">819</td>
+<td style="text-align: right;">11</td>
+<td style="text-align: left;">UA</td>
+<td style="text-align: right;">1545</td>
+<td style="text-align: left;">N14228</td>
+<td style="text-align: left;">EWR</td>
+<td style="text-align: left;">IAH</td>
+<td style="text-align: right;">227</td>
+<td style="text-align: right;">1400</td>
+<td style="text-align: right;">5</td>
+<td style="text-align: right;">15</td>
+<td style="text-align: left;">2013-01-01 05:00:00</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">2013</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">533</td>
+<td style="text-align: right;">529</td>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">850</td>
+<td style="text-align: right;">830</td>
+<td style="text-align: right;">20</td>
+<td style="text-align: left;">UA</td>
+<td style="text-align: right;">1714</td>
+<td style="text-align: left;">N24211</td>
+<td style="text-align: left;">LGA</td>
+<td style="text-align: left;">IAH</td>
+<td style="text-align: right;">227</td>
+<td style="text-align: right;">1416</td>
+<td style="text-align: right;">5</td>
+<td style="text-align: right;">29</td>
+<td style="text-align: left;">2013-01-01 05:00:00</td>
+</tr>
+<tr class="odd">
+<td style="text-align: right;">2013</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">542</td>
+<td style="text-align: right;">540</td>
+<td style="text-align: right;">2</td>
+<td style="text-align: right;">923</td>
+<td style="text-align: right;">850</td>
+<td style="text-align: right;">33</td>
+<td style="text-align: left;">AA</td>
+<td style="text-align: right;">1141</td>
+<td style="text-align: left;">N619AA</td>
+<td style="text-align: left;">JFK</td>
+<td style="text-align: left;">MIA</td>
+<td style="text-align: right;">160</td>
+<td style="text-align: right;">1089</td>
+<td style="text-align: right;">5</td>
+<td style="text-align: right;">40</td>
+<td style="text-align: left;">2013-01-01 05:00:00</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">2013</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">544</td>
+<td style="text-align: right;">545</td>
+<td style="text-align: right;">-1</td>
+<td style="text-align: right;">1004</td>
+<td style="text-align: right;">1022</td>
+<td style="text-align: right;">-18</td>
+<td style="text-align: left;">B6</td>
+<td style="text-align: right;">725</td>
+<td style="text-align: left;">N804JB</td>
+<td style="text-align: left;">JFK</td>
+<td style="text-align: left;">BQN</td>
+<td style="text-align: right;">183</td>
+<td style="text-align: right;">1576</td>
+<td style="text-align: right;">5</td>
+<td style="text-align: right;">45</td>
+<td style="text-align: left;">2013-01-01 05:00:00</td>
+</tr>
+<tr class="odd">
+<td style="text-align: right;">2013</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">554</td>
+<td style="text-align: right;">600</td>
+<td style="text-align: right;">-6</td>
+<td style="text-align: right;">812</td>
+<td style="text-align: right;">837</td>
+<td style="text-align: right;">-25</td>
+<td style="text-align: left;">DL</td>
+<td style="text-align: right;">461</td>
+<td style="text-align: left;">N668DN</td>
+<td style="text-align: left;">LGA</td>
+<td style="text-align: left;">ATL</td>
+<td style="text-align: right;">116</td>
+<td style="text-align: right;">762</td>
+<td style="text-align: right;">6</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: left;">2013-01-01 06:00:00</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">2013</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">554</td>
+<td style="text-align: right;">558</td>
+<td style="text-align: right;">-4</td>
+<td style="text-align: right;">740</td>
+<td style="text-align: right;">728</td>
+<td style="text-align: right;">12</td>
+<td style="text-align: left;">UA</td>
+<td style="text-align: right;">1696</td>
+<td style="text-align: left;">N39463</td>
+<td style="text-align: left;">EWR</td>
+<td style="text-align: left;">ORD</td>
+<td style="text-align: right;">150</td>
+<td style="text-align: right;">719</td>
+<td style="text-align: right;">5</td>
+<td style="text-align: right;">58</td>
+<td style="text-align: left;">2013-01-01 05:00:00</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+<p><br></p>
+<section id="june-27-2013" class="level5">
+<h5 class="anchored" data-anchor-id="june-27-2013">June 27, 2013</h5>
+<p>We have flight counts from every airline for the 3 New York airports throughout 2013. I picked flights from my birthday, June 27, to show flight counts for each station. Certain carriers have a dominant market share, and some carriers do not utilize the station at all.</p>
+<div class="cell">
+<details>
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>june27_flights <span class="ot">&lt;-</span> flights <span class="sc">|&gt;</span> </span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">dep_dttm =</span> time_hour <span class="sc">+</span> <span class="fu">minutes</span>(minute)) <span class="sc">|&gt;</span> </span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(day <span class="sc">==</span> <span class="dv">27</span> , month <span class="sc">==</span> <span class="dv">6</span>)</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>june27_flights <span class="sc">|&gt;</span> </span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">count</span>(carrier, origin) <span class="sc">|&gt;</span> </span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">pivot_wider</span>(<span class="at">id_cols =</span> carrier, <span class="at">names_from =</span> origin, <span class="at">values_from =</span> n) <span class="sc">|&gt;</span> </span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="fu">across</span>(<span class="fu">everything</span>(), \(x) <span class="fu">replace_na</span>(x, <span class="dv">0</span>))) <span class="sc">|&gt;</span> </span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">arrange</span>(<span class="sc">-</span>LGA) <span class="sc">|&gt;</span> </span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">reactable</span>(</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>    <span class="at">bordered =</span> <span class="cn">TRUE</span></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output-display">
+
+<div class="reactable html-widget html-fill-item-overflow-hidden html-fill-item" id="htmlwidget-72988d12dafe1cee2bc4" style="width:auto;height:auto;"></div>
+<script type="application/json" data-for="htmlwidget-72988d12dafe1cee2bc4">{"x":{"tag":{"name":"Reactable","attribs":{"data":{"carrier":["DL","MQ","AA","US","EV","UA","WN","B6","FL","9E","F9","YV","AS","HA","VX"],"EWR":[12,8,10,13,128,140,18,18,0,3,0,0,2,0,6],"JFK":[64,19,39,8,4,13,0,128,0,41,0,0,0,1,10],"LGA":[67,51,47,44,25,25,18,16,9,4,2,2,0,0,0]},"columns":[{"id":"carrier","name":"carrier","type":"character"},{"id":"EWR","name":"EWR","type":"numeric"},{"id":"JFK","name":"JFK","type":"numeric"},{"id":"LGA","name":"LGA","type":"numeric"}],"bordered":true,"dataKey":"80d6c0451a72f8a78e01dfed1e15cdc2"},"children":[]},"class":"reactR_markup"},"evals":[],"jsHooks":[]}</script>
+</div>
+</div>
+</section>
+</section>
+<section id="understanding-the-arrival-curve" class="level3">
+<h3 class="anchored" data-anchor-id="understanding-the-arrival-curve">Understanding the Arrival Curve</h3>
+<p>An arrival curve represents the distribution of passenger arrivals before the departure time. Several factors influence how early or close to departure passengers arrive, but these can generally be categorized into three main distributions:</p>
+<ul>
+<li><strong>Domestic Before 9am</strong> - Domestic flights departing before 9am have tighter distributions, as passengers find it harder to arrive extremely early.</li>
+<li><strong>Domestic After 9am</strong> - Off-peak domestic flights (departing during the day or evening) allow passengers ample time to arrive early.</li>
+<li><strong>International</strong> - Non-domestic flights, often involving more luggage, customs, and higher stress levels, typically see passengers arriving much earlier.</li>
+</ul>
+<p>The <a href="https://iabsc.org/wp-content/uploads/2021/04/Planning-Guidelines-and-Design-Standards-for-Checked-Baggage-Inspection-Systems-V7.0.pdf">Planning Guidelines and Design Standards for TSA</a> provide an arrival curve on page 91. As an LLM / AI pessimist, I have to give credit when it is due. To get the arrival curve I copied the table values from the pdf and asked OpenAI’s chatGPT to provide code to replicate the table, which worked seamlessly.</p>
+<p>The comparison of the three distributions reveals distinct patterns. Domestic flights have a mode around an hour before departure. In contrast, international flights show passengers arriving much earlier, with a longer tail towards earlier arrivals.</p>
+<div class="cell">
+<details>
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb3"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>station_colors <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">'#e41a1c'</span>, <span class="st">'#377eb8'</span>, <span class="st">'#4daf4a'</span>)</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>station_colors <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">'#66c2a5'</span>, <span class="st">'#fc8d62'</span>, <span class="st">'#8da0cb'</span>)</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>df <span class="ot">&lt;-</span> <span class="fu">tibble</span>(</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">minutes_prior =</span> <span class="fu">rev</span>(<span class="fu">c</span>(<span class="st">"&gt;240"</span>, <span class="st">"240"</span>, <span class="st">"230"</span>, <span class="st">"220"</span>, <span class="st">"210"</span>, <span class="st">"200"</span>, <span class="st">"190"</span>, <span class="st">"180"</span>, <span class="st">"170"</span>, <span class="st">"160"</span>, <span class="st">"150"</span>, <span class="st">"140"</span>, <span class="st">"130"</span>, <span class="st">"120"</span>, <span class="st">"110"</span>, <span class="st">"100"</span>, <span class="st">"90"</span>, <span class="st">"80"</span>, <span class="st">"70"</span>, <span class="st">"60"</span>, <span class="st">"50"</span>, <span class="st">"40"</span>, <span class="st">"30"</span>, <span class="st">"20"</span>, <span class="st">"10"</span>)),</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">peak_domestic_8am =</span> <span class="fu">c</span>(<span class="fl">0.80</span>, <span class="fl">0.26</span>, <span class="fl">0.42</span>, <span class="fl">1.10</span>, <span class="fl">3.08</span>, <span class="fl">6.71</span>, <span class="fl">10.34</span>, <span class="fl">12.87</span>, <span class="fl">13.54</span>, </span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>                        <span class="fl">12.79</span>, <span class="fl">11.21</span>, <span class="fl">8.70</span>, <span class="fl">6.13</span>, <span class="fl">4.11</span>, <span class="fl">2.66</span>, <span class="fl">1.69</span>, <span class="fl">1.10</span>, <span class="fl">0.72</span>, </span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>                        <span class="fl">0.46</span>, <span class="fl">0.32</span>, <span class="fl">0.22</span>, <span class="fl">0.15</span>, <span class="fl">0.11</span>, <span class="fl">0.08</span>, <span class="fl">0.41</span>),</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>  <span class="at">off_peak_domestic =</span> <span class="fu">c</span>(<span class="fl">0.06</span>, <span class="fl">0.30</span>, <span class="fl">0.48</span>, <span class="fl">0.98</span>, <span class="fl">2.10</span>, <span class="fl">4.03</span>, <span class="fl">6.19</span>, <span class="fl">8.16</span>, <span class="fl">9.59</span>, </span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>                       <span class="fl">10.25</span>, <span class="fl">10.08</span>, <span class="fl">9.25</span>, <span class="fl">7.95</span>, <span class="fl">6.44</span>, <span class="fl">5.09</span>, <span class="fl">3.94</span>, <span class="fl">3.06</span>, <span class="fl">2.36</span>, </span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>                       <span class="fl">1.83</span>, <span class="fl">1.43</span>, <span class="fl">1.14</span>, <span class="fl">0.92</span>, <span class="fl">0.74</span>, <span class="fl">0.62</span>, <span class="fl">3.01</span>),</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>  <span class="at">international =</span> <span class="fu">c</span>(<span class="fl">0.22</span>, <span class="fl">0.11</span>, <span class="fl">0.15</span>, <span class="fl">0.28</span>, <span class="fl">0.61</span>, <span class="fl">1.32</span>, <span class="fl">3.08</span>, <span class="fl">5.13</span>, <span class="fl">7.37</span>, </span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>                   <span class="fl">8.93</span>, <span class="fl">10.28</span>, <span class="fl">10.69</span>, <span class="fl">9.75</span>, <span class="fl">8.40</span>, <span class="fl">7.12</span>, <span class="fl">5.74</span>, <span class="fl">4.75</span>, <span class="fl">3.81</span>, </span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>                   <span class="fl">2.92</span>, <span class="fl">2.17</span>, <span class="fl">1.62</span>, <span class="fl">1.19</span>, <span class="fl">0.90</span>, <span class="fl">0.71</span>, <span class="fl">2.77</span>)</span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>arrival_curve <span class="ot">&lt;-</span> df <span class="sc">|&gt;</span> </span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(<span class="at">x =</span> <span class="fu">str_extract</span>(minutes_prior, <span class="st">'</span><span class="sc">\\</span><span class="st">d+'</span>) <span class="sc">|&gt;</span> <span class="fu">as.numeric</span>()) <span class="sc">|&gt;</span> </span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(<span class="at">minutes_prior =</span> x) <span class="sc">|&gt;</span> </span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(</span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>    <span class="fu">across</span>(<span class="fu">everything</span>(), sum)</span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span> </span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(<span class="sc">-</span>x) <span class="sc">|&gt;</span> </span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>  <span class="fu">pivot_longer</span>(<span class="sc">-</span>minutes_prior) <span class="sc">|&gt;</span> </span>
+<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">value =</span> value <span class="sc">/</span> <span class="dv">100</span>)</span>
+<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a>arrival_curve <span class="sc">|&gt;</span> </span>
+<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(<span class="fu">aes</span>(minutes_prior, value, <span class="at">color =</span> name)) <span class="sc">+</span></span>
+<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_point</span>() <span class="sc">+</span></span>
+<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_line</span>(<span class="at">linewidth =</span> <span class="dv">2</span>) <span class="sc">+</span></span>
+<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(</span>
+<span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a>    <span class="at">title =</span> <span class="st">'Arrival Curve'</span>,</span>
+<span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a>    <span class="at">subtitle =</span> <span class="st">'The distribution of minutes prior to departure that a passenger will arrive'</span>,</span>
+<span id="cb3-34"><a href="#cb3-34" aria-hidden="true" tabindex="-1"></a>    <span class="at">x =</span> <span class="st">'Minutes Prior'</span>,</span>
+<span id="cb3-35"><a href="#cb3-35" aria-hidden="true" tabindex="-1"></a>    <span class="at">y =</span> <span class="cn">NULL</span>,</span>
+<span id="cb3-36"><a href="#cb3-36" aria-hidden="true" tabindex="-1"></a>    <span class="at">color =</span> <span class="cn">NULL</span>,</span>
+<span id="cb3-37"><a href="#cb3-37" aria-hidden="true" tabindex="-1"></a>    <span class="at">fill =</span> <span class="cn">NULL</span>,</span>
+<span id="cb3-38"><a href="#cb3-38" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
+<span id="cb3-39"><a href="#cb3-39" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_y_continuous</span>(<span class="at">labels =</span> scales<span class="sc">::</span><span class="fu">percent_format</span>()) <span class="sc">+</span></span>
+<span id="cb3-40"><a href="#cb3-40" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_x_reverse</span>() <span class="sc">+</span></span>
+<span id="cb3-41"><a href="#cb3-41" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(<span class="at">legend.position =</span> <span class="st">'top'</span>) </span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output-display">
+<p><img src="index_files/figure-html/unnamed-chunk-3-1.png" class="img-fluid" width="672"></p>
+</div>
+</div>
+</section>
+<section id="simulating-arrivals-from-the-distribution" class="level3">
+<h3 class="anchored" data-anchor-id="simulating-arrivals-from-the-distribution">Simulating Arrivals from the Distribution</h3>
+<p>Our goal is to simulate arrivals from this distribution to optimize airport operations and planning. The data is binned into 10-minute intervals, which is appropriate for many use cases.</p>
+<p>To simulate arrivals:</p>
+<ol type="1">
+<li><strong>Sample from Bins:</strong> Using the table of percentages of passengers arriving in each 10-minute bin, we can sample with replacement from the minutes_prior column, guided by the probabilities from the arrival curve.</li>
+<li><strong>Kernel Density Estimate (KDE):</strong> Calculate a KDE to create a continuous distribution.</li>
+</ol>
+<p><strong>Note:</strong> The KDE may produce some negative values. Although these occurrences are rare, negative times are not possible. Therefore, I filtered out rows with <code>minutes_prior &lt; 0</code> and recalculated the percentages, dividing by the sum of all valid percentages for that group.”</p>
+<div class="cell">
+<details>
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">0527</span>)</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>arrival_samples <span class="ot">&lt;-</span> arrival_curve <span class="sc">|&gt;</span> </span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(name) <span class="sc">|&gt;</span> </span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">nest</span>() <span class="sc">|&gt;</span> </span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ungroup</span>() <span class="sc">|&gt;</span> </span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">samples =</span> <span class="fu">map</span>(<span class="at">.x =</span> data, <span class="sc">~</span><span class="fu">sample</span>(.x<span class="sc">$</span>minutes_prior, <span class="dv">1000</span>, <span class="at">replace =</span> <span class="cn">TRUE</span>, <span class="at">prob =</span> .x<span class="sc">$</span>value))</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span> </span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>    <span class="at">d =</span> <span class="fu">map</span>(samples, <span class="sc">~</span><span class="fu">density</span>(.x)),</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>    <span class="at">density_x =</span> <span class="fu">map</span>(d, <span class="st">"x"</span>),</span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>    <span class="at">density_y =</span> <span class="fu">map</span>(d, <span class="st">"y"</span>),</span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>    <span class="at">dens =</span> <span class="fu">tibble</span>(<span class="at">dens_x =</span> <span class="fu">map</span>(d, <span class="st">"x"</span>), <span class="at">dens_y =</span> <span class="fu">map</span>(d, <span class="st">"y"</span>))</span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span> </span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ungroup</span>() </span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>arrival_kde <span class="ot">&lt;-</span> arrival_samples <span class="sc">|&gt;</span> </span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(name, <span class="fu">starts_with</span>(<span class="st">'density'</span>)) <span class="sc">|&gt;</span> </span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>  <span class="fu">unnest</span>(<span class="fu">c</span>(density_x, density_y)) <span class="sc">|&gt;</span> </span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(density_x <span class="sc">&gt;</span> <span class="dv">0</span>) <span class="sc">|&gt;</span> </span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(name) <span class="sc">|&gt;</span> </span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">y =</span> density_y <span class="sc">/</span> <span class="fu">sum</span>(density_y)) <span class="sc">|&gt;</span></span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(name, <span class="at">minutes_prior =</span> density_x, <span class="at">perc =</span> y) <span class="sc">|&gt;</span> </span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ungroup</span>()</span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a>arrival_kde <span class="sc">|&gt;</span> </span>
+<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(<span class="fu">aes</span>(minutes_prior, perc, <span class="at">color =</span> name)) <span class="sc">+</span></span>
+<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_line</span>(<span class="at">linewidth =</span> <span class="dv">2</span>) <span class="sc">+</span> </span>
+<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(</span>
+<span id="cb4-31"><a href="#cb4-31" aria-hidden="true" tabindex="-1"></a>    <span class="at">title =</span> <span class="st">'KDE of Arrival Curve'</span>,</span>
+<span id="cb4-32"><a href="#cb4-32" aria-hidden="true" tabindex="-1"></a>    <span class="at">x =</span> <span class="st">'Minutes Prior'</span>,</span>
+<span id="cb4-33"><a href="#cb4-33" aria-hidden="true" tabindex="-1"></a>    <span class="at">y =</span> <span class="cn">NULL</span>,</span>
+<span id="cb4-34"><a href="#cb4-34" aria-hidden="true" tabindex="-1"></a>    <span class="at">color =</span> <span class="cn">NULL</span>,</span>
+<span id="cb4-35"><a href="#cb4-35" aria-hidden="true" tabindex="-1"></a>    <span class="at">fill =</span> <span class="cn">NULL</span>,</span>
+<span id="cb4-36"><a href="#cb4-36" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
+<span id="cb4-37"><a href="#cb4-37" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_y_continuous</span>(<span class="at">labels =</span> scales<span class="sc">::</span><span class="fu">percent_format</span>()) <span class="sc">+</span></span>
+<span id="cb4-38"><a href="#cb4-38" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_x_reverse</span>() <span class="sc">+</span> </span>
+<span id="cb4-39"><a href="#cb4-39" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(<span class="at">legend.position =</span> <span class="st">'top'</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output-display">
+<p><img src="index_files/figure-html/unnamed-chunk-4-1.png" class="img-fluid" width="672"></p>
+</div>
+</div>
+</section>
+<section id="load-factors" class="level3">
+<h3 class="anchored" data-anchor-id="load-factors">Load Factors</h3>
+<p>In aviation planning, estimating passenger numbers for a flight involves considering two primary factors:</p>
+<ul>
+<li><strong>Load Factor</strong>: This refers to the percentage of seats occupied on a flight.</li>
+<li><strong>Originating Factor</strong>: This factor indicates the proportion of passengers whose journey originates at a particular station.</li>
+</ul>
+<p>For calculation purposes, let’s consider an example with 100 seats available on a flight, an 80% load factor, and 90% of passengers originating from the local station.</p>
+<p>The formula for deriving the expected number of passengers is:</p>
+<p><em>Expected Passengers = Seats × Load Factor × Originating Factor</em></p>
+<p>Substituting the given values into the formula:</p>
+<p><em>Expected Passengers = 100 × 0.80 × 0.90</em></p>
+<p><em>Expected Passengers = 72</em></p>
+<p>So, in this scenario, we would expect approximately 72 passengers for the flight.</p>
+</section>
+<section id="bag-factors" class="level3">
+<h3 class="anchored" data-anchor-id="bag-factors">Bag Factors</h3>
+<p>Typically, airlines maintain their own datasets on various factors affecting flight operations. These include market dynamics, flight length, seasonality components, and other variables that influence load factors.</p>
+<p>For this, we will use the table provided in the <a href="https://iabsc.org/wp-content/uploads/2021/04/Planning-Guidelines-and-Design-Standards-for-Checked-Baggage-Inspection-Systems-V7.0.pdf">PGDS Study</a> on page 395. This gives a breakdown of the average load factor for each flight. Additionally it contains two other factors used later on, which are:</p>
+<ul>
+<li><strong>Checked Bag Factor</strong>: This represents the percentage of passengers checking bags.</li>
+<li><strong>Avg Number of Bags</strong>: This figure indicates the expected number of bags per passenger after accounting for the previously mentioned load factors.</li>
+</ul>
+<p>We’ll use this table generate more sampling data.</p>
+<div class="cell">
+<details>
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Define the data</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>operator_name <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">"Continental Airlines"</span>, <span class="st">"Alaska Airlines"</span>, <span class="st">"America West Airlines (domestic destinations)"</span>, </span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>                   <span class="st">"United Airlines"</span>, <span class="st">"XX Airlines"</span>, <span class="st">"SkyWest Airlines"</span>, <span class="st">"American Airlines"</span>, </span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>                   <span class="st">"JetBlue Airways"</span>, <span class="st">"Delta Air Lines"</span>, <span class="st">"America West Airlines (Mexican destinations)"</span>, </span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>                   <span class="st">"Aloha Airlines"</span>, <span class="st">"Horizon Air"</span>, <span class="st">"Mesa Airlines"</span>, <span class="st">"ATA Airlines"</span>, </span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>                   <span class="st">"United Express/SkyWest Airlines"</span>)</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>operator_code <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">"CO"</span>, <span class="st">"AS"</span>, <span class="st">"HP"</span>, <span class="st">"UA"</span>, <span class="st">"XX"</span>, <span class="st">"OO"</span>, <span class="st">"AA"</span>, <span class="st">"B6"</span>, <span class="st">"DL"</span>, <span class="st">"HP"</span>, <span class="st">"AQ"</span>, <span class="st">"QX"</span>, <span class="st">"YV"</span>, <span class="st">"TZ"</span>, <span class="st">"A296"</span>)</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>load_factor <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="dv">96</span>, <span class="dv">98</span>, <span class="dv">83</span>, <span class="dv">85</span>, <span class="dv">77</span>, <span class="dv">91</span>, <span class="dv">98</span>, <span class="dv">90</span>, <span class="dv">89</span>, <span class="dv">83</span>, <span class="dv">85</span>, <span class="dv">60</span>, <span class="dv">85</span>, <span class="dv">85</span>, <span class="dv">91</span>)</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>percent_of_parties_checking_pre_gate <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="dv">75</span>, <span class="dv">80</span>, <span class="dv">84</span>, <span class="dv">45</span>, <span class="dv">34</span>, <span class="dv">79</span>, <span class="dv">90</span>, <span class="dv">90</span>, <span class="dv">92</span>, <span class="dv">100</span>, <span class="dv">97</span>, <span class="dv">77</span>, <span class="dv">51</span>, <span class="dv">64</span>, <span class="dv">66</span>)</span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>average_number_of_checked_bags_per_passenger <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="fl">0.79</span>, <span class="fl">0.71</span>, <span class="fl">0.68</span>, <span class="fl">0.87</span>, <span class="fl">0.92</span>, <span class="fl">0.91</span>, <span class="fl">0.71</span>, <span class="fl">0.90</span>, <span class="fl">0.98</span>, <span class="fl">1.30</span>, <span class="fl">1.30</span>, <span class="fl">0.95</span>, <span class="fl">0.96</span>, <span class="fl">1.23</span>, <span class="fl">0.87</span>)</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a><span class="co"># Create the data frame</span></span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>operator_data <span class="ot">&lt;-</span> <span class="fu">tibble</span>(<span class="at">airline =</span> operator_name,</span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>                            <span class="at">carrier =</span> operator_code,</span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>                            <span class="at">load_factor =</span> load_factor,</span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>                            <span class="at">check_bag_factor =</span> percent_of_parties_checking_pre_gate,</span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>                            <span class="at">avg_num_bags =</span> average_number_of_checked_bags_per_passenger) <span class="sc">|&gt;</span> </span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="fu">across</span>(<span class="fu">contains</span>(<span class="st">'factor'</span>), \(x) x<span class="sc">/</span><span class="dv">100</span>))</span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a>operator_data</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output-display">
+<div class="kable-table">
+<table class="table table-sm table-striped small">
+<colgroup>
+<col style="width: 47%">
+<col style="width: 8%">
+<col style="width: 12%">
+<col style="width: 17%">
+<col style="width: 13%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">airline</th>
+<th style="text-align: left;">carrier</th>
+<th style="text-align: right;">load_factor</th>
+<th style="text-align: right;">check_bag_factor</th>
+<th style="text-align: right;">avg_num_bags</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">Continental Airlines</td>
+<td style="text-align: left;">CO</td>
+<td style="text-align: right;">0.96</td>
+<td style="text-align: right;">0.75</td>
+<td style="text-align: right;">0.79</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Alaska Airlines</td>
+<td style="text-align: left;">AS</td>
+<td style="text-align: right;">0.98</td>
+<td style="text-align: right;">0.80</td>
+<td style="text-align: right;">0.71</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">America West Airlines (domestic destinations)</td>
+<td style="text-align: left;">HP</td>
+<td style="text-align: right;">0.83</td>
+<td style="text-align: right;">0.84</td>
+<td style="text-align: right;">0.68</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">United Airlines</td>
+<td style="text-align: left;">UA</td>
+<td style="text-align: right;">0.85</td>
+<td style="text-align: right;">0.45</td>
+<td style="text-align: right;">0.87</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">XX Airlines</td>
+<td style="text-align: left;">XX</td>
+<td style="text-align: right;">0.77</td>
+<td style="text-align: right;">0.34</td>
+<td style="text-align: right;">0.92</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">SkyWest Airlines</td>
+<td style="text-align: left;">OO</td>
+<td style="text-align: right;">0.91</td>
+<td style="text-align: right;">0.79</td>
+<td style="text-align: right;">0.91</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">American Airlines</td>
+<td style="text-align: left;">AA</td>
+<td style="text-align: right;">0.98</td>
+<td style="text-align: right;">0.90</td>
+<td style="text-align: right;">0.71</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">JetBlue Airways</td>
+<td style="text-align: left;">B6</td>
+<td style="text-align: right;">0.90</td>
+<td style="text-align: right;">0.90</td>
+<td style="text-align: right;">0.90</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Delta Air Lines</td>
+<td style="text-align: left;">DL</td>
+<td style="text-align: right;">0.89</td>
+<td style="text-align: right;">0.92</td>
+<td style="text-align: right;">0.98</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">America West Airlines (Mexican destinations)</td>
+<td style="text-align: left;">HP</td>
+<td style="text-align: right;">0.83</td>
+<td style="text-align: right;">1.00</td>
+<td style="text-align: right;">1.30</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Aloha Airlines</td>
+<td style="text-align: left;">AQ</td>
+<td style="text-align: right;">0.85</td>
+<td style="text-align: right;">0.97</td>
+<td style="text-align: right;">1.30</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Horizon Air</td>
+<td style="text-align: left;">QX</td>
+<td style="text-align: right;">0.60</td>
+<td style="text-align: right;">0.77</td>
+<td style="text-align: right;">0.95</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Mesa Airlines</td>
+<td style="text-align: left;">YV</td>
+<td style="text-align: right;">0.85</td>
+<td style="text-align: right;">0.51</td>
+<td style="text-align: right;">0.96</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">ATA Airlines</td>
+<td style="text-align: left;">TZ</td>
+<td style="text-align: right;">0.85</td>
+<td style="text-align: right;">0.64</td>
+<td style="text-align: right;">1.23</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">United Express/SkyWest Airlines</td>
+<td style="text-align: left;">A296</td>
+<td style="text-align: right;">0.91</td>
+<td style="text-align: right;">0.66</td>
+<td style="text-align: right;">0.87</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</section>
+<section id="deriving-passenger-numbers" class="level3">
+<h3 class="anchored" data-anchor-id="deriving-passenger-numbers">Deriving Passenger Numbers</h3>
+<p>In this section, we’ll start by modeling passenger numbers under the assumption that all passengers are local. While this assumption may oversimplify reality, it serves as a conservative estimate for our analysis. With our data focusing on New York, US stations, this follows certain characteristics of domestic flights, particularly their tendency to follow daylight and fly from east to west.</p>
+<p>Domestic flights originating from the East Coast have high originating factors due to the network’s construction.</p>
+<p>Once we establish the basics of passenger modeling under this assumption, we can explore alternative solutions to refine our approach and accommodate more complex scenarios.</p>
+<section id="steps" class="level4">
+<h4 class="anchored" data-anchor-id="steps">Steps:</h4>
+<ol type="1">
+<li>Join seats of aircraft and factors to flight schedule</li>
+<li>Determine passengers for each flight</li>
+<li>Distribute the passengers across generic arrival curve (10 minute increment)</li>
+</ol>
+<p>The arrival curve used here is just the 10 minute increment arrival curve provided, and airports is part of the nycflights13 package. We will use this to determine domestic/international stations. The result is the flight schedule with an arrival curve joined to each row.</p>
+<div class="cell">
+<details>
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb6"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>arrival_join_10_min <span class="ot">&lt;-</span> arrival_curve <span class="sc">|&gt;</span> </span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">pivot_wider</span>(<span class="at">names_from =</span> minutes_prior, <span class="at">values_from =</span> value) <span class="sc">|&gt;</span> </span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">peak =</span> name <span class="sc">==</span> <span class="st">'peak_domestic_8am'</span>,</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">domestic =</span> <span class="sc">!</span><span class="fu">str_detect</span>(name, <span class="st">'international'</span>)</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>    ) </span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>airports <span class="ot">&lt;-</span> airports <span class="sc">|&gt;</span> </span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">domestic =</span> <span class="fu">str_detect</span>(tzone, <span class="st">'America'</span>))</span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>june27_base <span class="ot">&lt;-</span> june27_flights <span class="sc">|&gt;</span> </span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>  <span class="fu">left_join</span>(planes <span class="sc">|&gt;</span> <span class="fu">select</span>(tailnum, seats), <span class="at">by =</span> <span class="fu">c</span>(<span class="st">'tailnum'</span>)) <span class="sc">|&gt;</span> </span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">left_join</span>(operator_data, <span class="at">by =</span> <span class="fu">c</span>(<span class="st">'carrier'</span>)) <span class="sc">|&gt;</span> </span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>  <span class="fu">left_join</span>(airports, <span class="at">by =</span><span class="fu">c</span>(<span class="st">'dest'</span> <span class="ot">=</span> <span class="st">'faa'</span>)) <span class="sc">|&gt;</span> </span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>    <span class="at">peak =</span> sched_dep_time <span class="sc">&lt;=</span> <span class="dv">800</span>, </span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>    <span class="co"># use median values for missing airline data</span></span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>    <span class="fu">across</span>(<span class="fu">c</span>(<span class="fu">contains</span>(<span class="st">'factor'</span>), avg_num_bags ), \(x) <span class="fu">replace_na</span>(x, <span class="fu">median</span>(x, <span class="at">na.rm =</span> <span class="cn">TRUE</span>)))</span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span> </span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a>    <span class="at">passengers =</span> <span class="fu">round</span>(seats <span class="sc">*</span> load_factor)</span>
+<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span> </span>
+<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a>  <span class="fu">left_join</span>(</span>
+<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 10 minute arrival curve</span></span>
+<span id="cb6-25"><a href="#cb6-25" aria-hidden="true" tabindex="-1"></a>    arrival_join_10_min,</span>
+<span id="cb6-26"><a href="#cb6-26" aria-hidden="true" tabindex="-1"></a>    <span class="at">by =</span> <span class="fu">c</span>(<span class="st">'peak'</span>, <span class="st">'domestic'</span>)</span>
+<span id="cb6-27"><a href="#cb6-27" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span> </span>
+<span id="cb6-28"><a href="#cb6-28" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(carrier, origin, dest, dep_dttm, passengers, <span class="st">`</span><span class="at">10</span><span class="st">`</span><span class="sc">:</span><span class="st">`</span><span class="at">240</span><span class="st">`</span>)</span>
+<span id="cb6-29"><a href="#cb6-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-30"><a href="#cb6-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-31"><a href="#cb6-31" aria-hidden="true" tabindex="-1"></a>june27_base <span class="sc">|&gt;</span> </span>
+<span id="cb6-32"><a href="#cb6-32" aria-hidden="true" tabindex="-1"></a>  <span class="fu">head</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output-display">
+<div class="kable-table">
+<table class="table table-sm table-striped small">
+<colgroup>
+<col style="width: 3%">
+<col style="width: 3%">
+<col style="width: 2%">
+<col style="width: 9%">
+<col style="width: 5%">
+<col style="width: 2%">
+<col style="width: 2%">
+<col style="width: 3%">
+<col style="width: 3%">
+<col style="width: 2%">
+<col style="width: 3%">
+<col style="width: 3%">
+<col style="width: 3%">
+<col style="width: 3%">
+<col style="width: 3%">
+<col style="width: 3%">
+<col style="width: 3%">
+<col style="width: 3%">
+<col style="width: 3%">
+<col style="width: 3%">
+<col style="width: 3%">
+<col style="width: 3%">
+<col style="width: 3%">
+<col style="width: 3%">
+<col style="width: 3%">
+<col style="width: 3%">
+<col style="width: 3%">
+<col style="width: 3%">
+<col style="width: 3%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">carrier</th>
+<th style="text-align: left;">origin</th>
+<th style="text-align: left;">dest</th>
+<th style="text-align: left;">dep_dttm</th>
+<th style="text-align: right;">passengers</th>
+<th style="text-align: right;">10</th>
+<th style="text-align: right;">20</th>
+<th style="text-align: right;">30</th>
+<th style="text-align: right;">40</th>
+<th style="text-align: right;">50</th>
+<th style="text-align: right;">60</th>
+<th style="text-align: right;">70</th>
+<th style="text-align: right;">80</th>
+<th style="text-align: right;">90</th>
+<th style="text-align: right;">100</th>
+<th style="text-align: right;">110</th>
+<th style="text-align: right;">120</th>
+<th style="text-align: right;">130</th>
+<th style="text-align: right;">140</th>
+<th style="text-align: right;">150</th>
+<th style="text-align: right;">160</th>
+<th style="text-align: right;">170</th>
+<th style="text-align: right;">180</th>
+<th style="text-align: right;">190</th>
+<th style="text-align: right;">200</th>
+<th style="text-align: right;">210</th>
+<th style="text-align: right;">220</th>
+<th style="text-align: right;">230</th>
+<th style="text-align: right;">240</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">UA</td>
+<td style="text-align: left;">EWR</td>
+<td style="text-align: left;">MIA</td>
+<td style="text-align: left;">2013-06-27 20:10:00</td>
+<td style="text-align: right;">127</td>
+<td style="text-align: right;">6e-04</td>
+<td style="text-align: right;">0.003</td>
+<td style="text-align: right;">0.0048</td>
+<td style="text-align: right;">0.0098</td>
+<td style="text-align: right;">0.021</td>
+<td style="text-align: right;">0.0403</td>
+<td style="text-align: right;">0.0619</td>
+<td style="text-align: right;">0.0816</td>
+<td style="text-align: right;">0.0959</td>
+<td style="text-align: right;">0.1025</td>
+<td style="text-align: right;">0.1008</td>
+<td style="text-align: right;">0.0925</td>
+<td style="text-align: right;">0.0795</td>
+<td style="text-align: right;">0.0644</td>
+<td style="text-align: right;">0.0509</td>
+<td style="text-align: right;">0.0394</td>
+<td style="text-align: right;">0.0306</td>
+<td style="text-align: right;">0.0236</td>
+<td style="text-align: right;">0.0183</td>
+<td style="text-align: right;">0.0143</td>
+<td style="text-align: right;">0.0114</td>
+<td style="text-align: right;">0.0092</td>
+<td style="text-align: right;">0.0074</td>
+<td style="text-align: right;">0.0363</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">B6</td>
+<td style="text-align: left;">JFK</td>
+<td style="text-align: left;">MCO</td>
+<td style="text-align: left;">2013-06-27 21:46:00</td>
+<td style="text-align: right;">18</td>
+<td style="text-align: right;">6e-04</td>
+<td style="text-align: right;">0.003</td>
+<td style="text-align: right;">0.0048</td>
+<td style="text-align: right;">0.0098</td>
+<td style="text-align: right;">0.021</td>
+<td style="text-align: right;">0.0403</td>
+<td style="text-align: right;">0.0619</td>
+<td style="text-align: right;">0.0816</td>
+<td style="text-align: right;">0.0959</td>
+<td style="text-align: right;">0.1025</td>
+<td style="text-align: right;">0.1008</td>
+<td style="text-align: right;">0.0925</td>
+<td style="text-align: right;">0.0795</td>
+<td style="text-align: right;">0.0644</td>
+<td style="text-align: right;">0.0509</td>
+<td style="text-align: right;">0.0394</td>
+<td style="text-align: right;">0.0306</td>
+<td style="text-align: right;">0.0236</td>
+<td style="text-align: right;">0.0183</td>
+<td style="text-align: right;">0.0143</td>
+<td style="text-align: right;">0.0114</td>
+<td style="text-align: right;">0.0092</td>
+<td style="text-align: right;">0.0074</td>
+<td style="text-align: right;">0.0363</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">B6</td>
+<td style="text-align: left;">JFK</td>
+<td style="text-align: left;">FLL</td>
+<td style="text-align: left;">2013-06-27 21:55:00</td>
+<td style="text-align: right;">180</td>
+<td style="text-align: right;">6e-04</td>
+<td style="text-align: right;">0.003</td>
+<td style="text-align: right;">0.0048</td>
+<td style="text-align: right;">0.0098</td>
+<td style="text-align: right;">0.021</td>
+<td style="text-align: right;">0.0403</td>
+<td style="text-align: right;">0.0619</td>
+<td style="text-align: right;">0.0816</td>
+<td style="text-align: right;">0.0959</td>
+<td style="text-align: right;">0.1025</td>
+<td style="text-align: right;">0.1008</td>
+<td style="text-align: right;">0.0925</td>
+<td style="text-align: right;">0.0795</td>
+<td style="text-align: right;">0.0644</td>
+<td style="text-align: right;">0.0509</td>
+<td style="text-align: right;">0.0394</td>
+<td style="text-align: right;">0.0306</td>
+<td style="text-align: right;">0.0236</td>
+<td style="text-align: right;">0.0183</td>
+<td style="text-align: right;">0.0143</td>
+<td style="text-align: right;">0.0114</td>
+<td style="text-align: right;">0.0092</td>
+<td style="text-align: right;">0.0074</td>
+<td style="text-align: right;">0.0363</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">B6</td>
+<td style="text-align: left;">JFK</td>
+<td style="text-align: left;">BUF</td>
+<td style="text-align: left;">2013-06-27 21:10:00</td>
+<td style="text-align: right;">18</td>
+<td style="text-align: right;">6e-04</td>
+<td style="text-align: right;">0.003</td>
+<td style="text-align: right;">0.0048</td>
+<td style="text-align: right;">0.0098</td>
+<td style="text-align: right;">0.021</td>
+<td style="text-align: right;">0.0403</td>
+<td style="text-align: right;">0.0619</td>
+<td style="text-align: right;">0.0816</td>
+<td style="text-align: right;">0.0959</td>
+<td style="text-align: right;">0.1025</td>
+<td style="text-align: right;">0.1008</td>
+<td style="text-align: right;">0.0925</td>
+<td style="text-align: right;">0.0795</td>
+<td style="text-align: right;">0.0644</td>
+<td style="text-align: right;">0.0509</td>
+<td style="text-align: right;">0.0394</td>
+<td style="text-align: right;">0.0306</td>
+<td style="text-align: right;">0.0236</td>
+<td style="text-align: right;">0.0183</td>
+<td style="text-align: right;">0.0143</td>
+<td style="text-align: right;">0.0114</td>
+<td style="text-align: right;">0.0092</td>
+<td style="text-align: right;">0.0074</td>
+<td style="text-align: right;">0.0363</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">UA</td>
+<td style="text-align: left;">EWR</td>
+<td style="text-align: left;">CLE</td>
+<td style="text-align: left;">2013-06-27 20:21:00</td>
+<td style="text-align: right;">127</td>
+<td style="text-align: right;">6e-04</td>
+<td style="text-align: right;">0.003</td>
+<td style="text-align: right;">0.0048</td>
+<td style="text-align: right;">0.0098</td>
+<td style="text-align: right;">0.021</td>
+<td style="text-align: right;">0.0403</td>
+<td style="text-align: right;">0.0619</td>
+<td style="text-align: right;">0.0816</td>
+<td style="text-align: right;">0.0959</td>
+<td style="text-align: right;">0.1025</td>
+<td style="text-align: right;">0.1008</td>
+<td style="text-align: right;">0.0925</td>
+<td style="text-align: right;">0.0795</td>
+<td style="text-align: right;">0.0644</td>
+<td style="text-align: right;">0.0509</td>
+<td style="text-align: right;">0.0394</td>
+<td style="text-align: right;">0.0306</td>
+<td style="text-align: right;">0.0236</td>
+<td style="text-align: right;">0.0183</td>
+<td style="text-align: right;">0.0143</td>
+<td style="text-align: right;">0.0114</td>
+<td style="text-align: right;">0.0092</td>
+<td style="text-align: right;">0.0074</td>
+<td style="text-align: right;">0.0363</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">B6</td>
+<td style="text-align: left;">JFK</td>
+<td style="text-align: left;">BOS</td>
+<td style="text-align: left;">2013-06-27 23:00:00</td>
+<td style="text-align: right;">18</td>
+<td style="text-align: right;">6e-04</td>
+<td style="text-align: right;">0.003</td>
+<td style="text-align: right;">0.0048</td>
+<td style="text-align: right;">0.0098</td>
+<td style="text-align: right;">0.021</td>
+<td style="text-align: right;">0.0403</td>
+<td style="text-align: right;">0.0619</td>
+<td style="text-align: right;">0.0816</td>
+<td style="text-align: right;">0.0959</td>
+<td style="text-align: right;">0.1025</td>
+<td style="text-align: right;">0.1008</td>
+<td style="text-align: right;">0.0925</td>
+<td style="text-align: right;">0.0795</td>
+<td style="text-align: right;">0.0644</td>
+<td style="text-align: right;">0.0509</td>
+<td style="text-align: right;">0.0394</td>
+<td style="text-align: right;">0.0306</td>
+<td style="text-align: right;">0.0236</td>
+<td style="text-align: right;">0.0183</td>
+<td style="text-align: right;">0.0143</td>
+<td style="text-align: right;">0.0114</td>
+<td style="text-align: right;">0.0092</td>
+<td style="text-align: right;">0.0074</td>
+<td style="text-align: right;">0.0363</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</section>
+</section>
+<section id="distribute-demand" class="level3">
+<h3 class="anchored" data-anchor-id="distribute-demand">Distribute demand</h3>
+<p>For the simple approach, all we will do is distribute the passenger vector across the columns of the arrival curve percentages.</p>
+<section id="steps-1" class="level4">
+<h4 class="anchored" data-anchor-id="steps-1">Steps:</h4>
+<ol type="1">
+<li>Multiply passenger column by all of the arrival curve columns</li>
+<li>Reshape the dataframe to a longer format so that each row represents a 10-minute interval per flight.</li>
+<li>Subtract that minute value from the departure datetime</li>
+<li>Group by the new model time and aggregate the sum of passengers.</li>
+</ol>
+<p><strong>Note:</strong> The departure times are in minute granularity. We group them into 10-minute bins to align with the basic arrival curve.</p>
+<div class="cell">
+<details>
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>june27_long <span class="ot">&lt;-</span> june27_base <span class="sc">|&gt;</span> </span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">dep_dttm =</span> <span class="fu">if_else</span>(<span class="fu">minute</span>(dep_dttm) <span class="sc">%%</span> <span class="dv">10</span> <span class="sc">!=</span> <span class="dv">0</span> , dep_dttm <span class="sc">-</span> <span class="fu">minutes</span>(<span class="fu">minute</span>(dep_dttm) <span class="sc">%%</span> <span class="dv">10</span>), dep_dttm)) <span class="sc">|&gt;</span> </span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="fu">across</span>(<span class="st">`</span><span class="at">10</span><span class="st">`</span><span class="sc">:</span><span class="st">`</span><span class="at">240</span><span class="st">`</span>, \(x) x <span class="sc">*</span> passengers)) <span class="sc">|&gt;</span> </span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">pivot_longer</span>(<span class="at">cols =</span> <span class="st">`</span><span class="at">10</span><span class="st">`</span><span class="sc">:</span><span class="st">`</span><span class="at">240</span><span class="st">`</span>, <span class="at">names_to =</span> <span class="st">'minutes_prior'</span>, <span class="at">values_to =</span> <span class="st">'exp_passengers'</span>) <span class="sc">|&gt;</span> </span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">model_time =</span> dep_dttm <span class="sc">-</span> <span class="fu">minutes</span>(minutes_prior)</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>june27_long <span class="sc">|&gt;</span> </span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">head</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output-display">
+<div class="kable-table">
+<table class="table table-sm table-striped small">
+<colgroup>
+<col style="width: 8%">
+<col style="width: 7%">
+<col style="width: 5%">
+<col style="width: 20%">
+<col style="width: 11%">
+<col style="width: 14%">
+<col style="width: 15%">
+<col style="width: 20%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">carrier</th>
+<th style="text-align: left;">origin</th>
+<th style="text-align: left;">dest</th>
+<th style="text-align: left;">dep_dttm</th>
+<th style="text-align: right;">passengers</th>
+<th style="text-align: left;">minutes_prior</th>
+<th style="text-align: right;">exp_passengers</th>
+<th style="text-align: left;">model_time</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">UA</td>
+<td style="text-align: left;">EWR</td>
+<td style="text-align: left;">MIA</td>
+<td style="text-align: left;">2013-06-27 20:10:00</td>
+<td style="text-align: right;">127</td>
+<td style="text-align: left;">10</td>
+<td style="text-align: right;">0.0762</td>
+<td style="text-align: left;">2013-06-27 20:00:00</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">UA</td>
+<td style="text-align: left;">EWR</td>
+<td style="text-align: left;">MIA</td>
+<td style="text-align: left;">2013-06-27 20:10:00</td>
+<td style="text-align: right;">127</td>
+<td style="text-align: left;">20</td>
+<td style="text-align: right;">0.3810</td>
+<td style="text-align: left;">2013-06-27 19:50:00</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">UA</td>
+<td style="text-align: left;">EWR</td>
+<td style="text-align: left;">MIA</td>
+<td style="text-align: left;">2013-06-27 20:10:00</td>
+<td style="text-align: right;">127</td>
+<td style="text-align: left;">30</td>
+<td style="text-align: right;">0.6096</td>
+<td style="text-align: left;">2013-06-27 19:40:00</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">UA</td>
+<td style="text-align: left;">EWR</td>
+<td style="text-align: left;">MIA</td>
+<td style="text-align: left;">2013-06-27 20:10:00</td>
+<td style="text-align: right;">127</td>
+<td style="text-align: left;">40</td>
+<td style="text-align: right;">1.2446</td>
+<td style="text-align: left;">2013-06-27 19:30:00</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">UA</td>
+<td style="text-align: left;">EWR</td>
+<td style="text-align: left;">MIA</td>
+<td style="text-align: left;">2013-06-27 20:10:00</td>
+<td style="text-align: right;">127</td>
+<td style="text-align: left;">50</td>
+<td style="text-align: right;">2.6670</td>
+<td style="text-align: left;">2013-06-27 19:20:00</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">UA</td>
+<td style="text-align: left;">EWR</td>
+<td style="text-align: left;">MIA</td>
+<td style="text-align: left;">2013-06-27 20:10:00</td>
+<td style="text-align: right;">127</td>
+<td style="text-align: left;">60</td>
+<td style="text-align: right;">5.1181</td>
+<td style="text-align: left;">2013-06-27 19:10:00</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<details>
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>june27_long <span class="sc">|&gt;</span> </span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(origin, model_time) <span class="sc">|&gt;</span> </span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">expected_passengers =</span> <span class="fu">sum</span>(exp_passengers, <span class="at">na.rm =</span> <span class="cn">TRUE</span>),</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">.groups =</span> <span class="st">'drop'</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span> </span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(<span class="fu">aes</span>(model_time, expected_passengers)) <span class="sc">+</span></span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_line</span>(<span class="at">linewidth =</span> <span class="dv">2</span>, <span class="fu">aes</span>(<span class="at">color =</span> origin)) <span class="sc">+</span></span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">facet_wrap</span>(<span class="sc">~</span>origin, <span class="at">ncol =</span> <span class="dv">1</span>) <span class="sc">+</span></span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(</span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>    <span class="at">title =</span> <span class="st">'Expected Passengers'</span>,</span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>    <span class="at">x =</span> <span class="st">"Time"</span>,</span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>    <span class="at">y =</span> <span class="st">"Expected passengers"</span></span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_color_manual</span>(<span class="at">values =</span> station_colors) <span class="sc">+</span></span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(<span class="at">legend.position =</span> <span class="st">'none'</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output-display">
+<p><img src="index_files/figure-html/unnamed-chunk-7-1.png" class="img-fluid" width="672"></p>
+</div>
+</div>
+</section>
+<section id="a-better-visualizaiton" class="level4">
+<h4 class="anchored" data-anchor-id="a-better-visualizaiton">A better visualizaiton</h4>
+<p>To see the lagging effect of passengers arrivals relative to the departure time, you can visualize the passenger demand profile against the distribution of flights throughout the day.</p>
+<div class="cell">
+<details>
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb9"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>june27_long <span class="sc">|&gt;</span> </span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(origin, model_time) <span class="sc">|&gt;</span> </span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">expected_passengers =</span> <span class="fu">sum</span>(exp_passengers, <span class="at">na.rm =</span> <span class="cn">TRUE</span>),</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">.groups =</span> <span class="st">'drop'</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span> </span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">left_join</span>(</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>    june27_base <span class="sc">|&gt;</span>   </span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>      <span class="fu">mutate</span>(<span class="at">dep_dttm =</span> <span class="fu">if_else</span>(<span class="fu">minute</span>(dep_dttm) <span class="sc">%%</span> <span class="dv">10</span> <span class="sc">!=</span> <span class="dv">0</span> , dep_dttm <span class="sc">-</span> <span class="fu">minutes</span>(<span class="fu">minute</span>(dep_dttm) <span class="sc">%%</span> <span class="dv">10</span>), dep_dttm)) <span class="sc">|&gt;</span> </span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>      <span class="fu">count</span>(dep_dttm, origin),</span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>    <span class="at">by =</span> <span class="fu">c</span>(<span class="st">'model_time'</span> <span class="ot">=</span> <span class="st">'dep_dttm'</span>, <span class="st">'origin'</span>)</span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span> </span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">n =</span> n <span class="sc">*</span> <span class="dv">50</span>) <span class="sc">|&gt;</span> </span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>  <span class="co">#filter(origin == 'LGA') |&gt; </span></span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(<span class="fu">aes</span>(model_time, <span class="at">color =</span> origin, <span class="at">fill =</span> origin)) <span class="sc">+</span></span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_col</span>(<span class="fu">aes</span>(<span class="at">y=</span>n), <span class="at">alpha =</span> <span class="fl">0.26</span>) <span class="sc">+</span></span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_line</span>(<span class="fu">aes</span>(<span class="at">y=</span>expected_passengers), <span class="at">linewidth =</span> <span class="dv">2</span>) <span class="sc">+</span></span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_y_continuous</span>(<span class="at">sec.axis =</span> <span class="fu">sec_axis</span>(<span class="sc">~</span>.<span class="sc">/</span><span class="dv">50</span>, <span class="at">name =</span> <span class="st">"Flight Count"</span>)) <span class="sc">+</span></span>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a>  <span class="fu">facet_wrap</span>(<span class="sc">~</span>origin, <span class="at">ncol =</span> <span class="dv">1</span>) <span class="sc">+</span></span>
+<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(</span>
+<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a>    <span class="at">title =</span> <span class="st">'Distirbution of Passengers and Flights throughout the day'</span>,</span>
+<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a>    <span class="at">y =</span> <span class="st">'Expected Passenger Demand'</span>,</span>
+<span id="cb9-23"><a href="#cb9-23" aria-hidden="true" tabindex="-1"></a>    <span class="at">x =</span> <span class="st">'Time'</span>,</span>
+<span id="cb9-24"><a href="#cb9-24" aria-hidden="true" tabindex="-1"></a>    <span class="at">color =</span> <span class="cn">NULL</span>,</span>
+<span id="cb9-25"><a href="#cb9-25" aria-hidden="true" tabindex="-1"></a>    <span class="at">fill =</span> <span class="cn">NULL</span></span>
+<span id="cb9-26"><a href="#cb9-26" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
+<span id="cb9-27"><a href="#cb9-27" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(</span>
+<span id="cb9-28"><a href="#cb9-28" aria-hidden="true" tabindex="-1"></a>    <span class="at">legend.position =</span> <span class="st">'none'</span>,</span>
+<span id="cb9-29"><a href="#cb9-29" aria-hidden="true" tabindex="-1"></a>    <span class="at">plot.title =</span> <span class="fu">element_text</span>(<span class="at">face =</span> <span class="st">'bold'</span>, <span class="at">size =</span> <span class="dv">16</span>)</span>
+<span id="cb9-30"><a href="#cb9-30" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
+<span id="cb9-31"><a href="#cb9-31" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_color_manual</span>(<span class="at">values =</span> station_colors)<span class="sc">+</span></span>
+<span id="cb9-32"><a href="#cb9-32" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_fill_manual</span>(<span class="at">values =</span> station_colors)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output-display">
+<p><img src="index_files/figure-html/unnamed-chunk-8-1.png" class="img-fluid" width="672"></p>
+</div>
+</div>
+</section>
+</section>
+<section id="this-is-great-but-where-is-the-simulation" class="level3">
+<h3 class="anchored" data-anchor-id="this-is-great-but-where-is-the-simulation">This is great, but where is the simulation</h3>
+<p>What we did is the bare minimum to model passengers, and later bags, throughout the day. This approach is likely used in the PGDS study, and linear calculations are in my opinion overused in modeling facilities today.</p>
+<section id="what-approach-should-be-used" class="level4">
+<h4 class="anchored" data-anchor-id="what-approach-should-be-used">What approach should be used?</h4>
+<p>Every input can be sampled and simulated, and there are tradeoffs to consider with each approach. Using linear calculations is straightforward; for instance, you can easily explain that a flat load factor was used. However, this method falls short when trying to understand tail-end outcomes or disaster situations.</p>
+<p>We’ll start by simulating passengers from the arrival curve in the next post.</p>
+
+
+</section>
+</section>
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const disableStylesheet = (stylesheets) => {
+    for (let i=0; i < stylesheets.length; i++) {
+      const stylesheet = stylesheets[i];
+      stylesheet.rel = 'prefetch';
+    }
+  }
+  const enableStylesheet = (stylesheets) => {
+    for (let i=0; i < stylesheets.length; i++) {
+      const stylesheet = stylesheets[i];
+      stylesheet.rel = 'stylesheet';
+    }
+  }
+  const manageTransitions = (selector, allowTransitions) => {
+    const els = window.document.querySelectorAll(selector);
+    for (let i=0; i < els.length; i++) {
+      const el = els[i];
+      if (allowTransitions) {
+        el.classList.remove('notransition');
+      } else {
+        el.classList.add('notransition');
+      }
+    }
+  }
+  const toggleColorMode = (alternate) => {
+    // Switch the stylesheets
+    const alternateStylesheets = window.document.querySelectorAll('link.quarto-color-scheme.quarto-color-alternate');
+    manageTransitions('#quarto-margin-sidebar .nav-link', false);
+    if (alternate) {
+      enableStylesheet(alternateStylesheets);
+      for (const sheetNode of alternateStylesheets) {
+        if (sheetNode.id === "quarto-bootstrap") {
+          toggleBodyColorMode(sheetNode);
+        }
+      }
+    } else {
+      disableStylesheet(alternateStylesheets);
+      toggleBodyColorPrimary();
+    }
+    manageTransitions('#quarto-margin-sidebar .nav-link', true);
+    // Switch the toggles
+    const toggles = window.document.querySelectorAll('.quarto-color-scheme-toggle');
+    for (let i=0; i < toggles.length; i++) {
+      const toggle = toggles[i];
+      if (toggle) {
+        if (alternate) {
+          toggle.classList.add("alternate");     
+        } else {
+          toggle.classList.remove("alternate");
+        }
+      }
+    }
+    // Hack to workaround the fact that safari doesn't
+    // properly recolor the scrollbar when toggling (#1455)
+    if (navigator.userAgent.indexOf('Safari') > 0 && navigator.userAgent.indexOf('Chrome') == -1) {
+      manageTransitions("body", false);
+      window.scrollTo(0, 1);
+      setTimeout(() => {
+        window.scrollTo(0, 0);
+        manageTransitions("body", true);
+      }, 40);  
+    }
+  }
+  const isFileUrl = () => { 
+    return window.location.protocol === 'file:';
+  }
+  const hasAlternateSentinel = () => {  
+    let styleSentinel = getColorSchemeSentinel();
+    if (styleSentinel !== null) {
+      return styleSentinel === "alternate";
+    } else {
+      return false;
+    }
+  }
+  const setStyleSentinel = (alternate) => {
+    const value = alternate ? "alternate" : "default";
+    if (!isFileUrl()) {
+      window.localStorage.setItem("quarto-color-scheme", value);
+    } else {
+      localAlternateSentinel = value;
+    }
+  }
+  const getColorSchemeSentinel = () => {
+    if (!isFileUrl()) {
+      const storageValue = window.localStorage.getItem("quarto-color-scheme");
+      return storageValue != null ? storageValue : localAlternateSentinel;
+    } else {
+      return localAlternateSentinel;
+    }
+  }
+  let localAlternateSentinel = 'default';
+  // Dark / light mode switch
+  window.quartoToggleColorScheme = () => {
+    // Read the current dark / light value 
+    let toAlternate = !hasAlternateSentinel();
+    toggleColorMode(toAlternate);
+    setStyleSentinel(toAlternate);
+  };
+  // Ensure there is a toggle, if there isn't float one in the top right
+  if (window.document.querySelector('.quarto-color-scheme-toggle') === null) {
+    const a = window.document.createElement('a');
+    a.classList.add('top-right');
+    a.classList.add('quarto-color-scheme-toggle');
+    a.href = "";
+    a.onclick = function() { try { window.quartoToggleColorScheme(); } catch {} return false; };
+    const i = window.document.createElement("i");
+    i.classList.add('bi');
+    a.appendChild(i);
+    window.document.body.appendChild(a);
+  }
+  // Switch to dark mode if need be
+  if (hasAlternateSentinel()) {
+    toggleColorMode(true);
+  } else {
+    toggleColorMode(false);
+  }
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button', {
+    text: function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+  });
+  clipboard.on('success', function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  });
+  function tippyHover(el, contentFn) {
+    const config = {
+      allowHTML: true,
+      content: contentFn,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start'
+    };
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      return note.innerHTML;
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+
+
+
+</body></html>
