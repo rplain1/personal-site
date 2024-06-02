@@ -20,7 +20,7 @@ I was once asked during my time working with Southwest Airlines how I got into a
 Everything I will discuss is well known and industry standard. Transportation Security Administration (TSA) and the International Association of Baggage System Companies (IABSC) have a lot of this documented, which you can read about [here](https://iabsc.org/wp-content/uploads/2021/04/Planning-Guidelines-and-Design-Standards-for-Checked-Baggage-Inspection-Systems-V7.0.pdf). 
 
 **NOTE:** I intend to have a series of different topics in simulation, with this being a foundation introduction. When I refer to things out of scope, my plan is to cover it in a later post. Simulation covers topics of uncertainty while also providing data engineering challenges due to the size of data generated. Maybe we can leverage our beloved DuckDB in a future post too. 
-Let's get to started! 
+Let's get started! 
 
 ### Flight Schedule
 
