@@ -15,7 +15,12 @@ format:
   html:
     theme: 
       light: pulse
-      dark: vapor
+      dark: pulse
+    toggle:
+      - icon: sun
+        light: true
+      - icon: moon
+        dark: true
     css: styles.css
 
 editor: source
