@@ -1,10 +1,10 @@
 ---
-title: "Modeling Airports (Cont.)"
+title: "Arrival Curve Sampling"
 author: "Ryan Plain"
 date: "2024-06-02"
 categories: [Flights, R]
-description: "test"
-draft: true
+description: "Adding variance using the KDE of each arrival curve"
+draft: false
 format: 
   html: 
     code-fold: true
@@ -151,9 +151,12 @@ airports <- airports |>
     group_by(name) |> 
     nest() |> 
     ungroup() |> 
+    # sample 1000 values from 10 minute increments
     mutate(
       samples = map(.x = data, ~sample(.x$minutes_prior, 1000, replace = TRUE, prob = .x$value))
     ) |> 
+   # apply KDE function, here {ks} is used which was different than the 
+   # last post that used `d = map(samples, ~density(.x))`,
     mutate(
       .kde = map(.x = samples, ~ks::kde(.x)),
     ) |> 
@@ -165,9 +168,11 @@ airports <- airports |>
 
 
 june_27_base <- june27_flights |> 
+  # join all the tables
   left_join(planes |> select(tailnum, seats), by = c('tailnum')) |> 
   left_join(pax_bag_data, by = c('carrier')) |> 
   left_join(airports, by =c('dest' = 'faa')) |> 
+  # Some stations did not have a timezone, default to non-domestic
   mutate(
     domestic = replace_na(domestic, FALSE),
     join_arr_col = case_when(
@@ -178,9 +183,11 @@ june_27_base <- june27_flights |>
     # use median values for missing airline data
     across(c(contains('factor'), avg_num_bags ), \(x) replace_na(x, median(x, na.rm = TRUE)))
   ) |> 
+  # Fill in the NA seat values for small amount of missing data in planes table
   group_by(carrier) |> 
   mutate(seats = replace_na(seats, median(seats, na.rm = TRUE))) |> 
   ungroup() |> 
+  # Apply factors to seats to get passengers and bags
   mutate(
     passengers = round(seats * load_factor),
     passengers_with_bag = round(seats * check_bag_factor),
@@ -208,6 +215,7 @@ This approach enables us to introduce variability into our arrival curve modelin
 
 ```{r}
 set.seed(1234)
+# Generate random arrivals from the KDE for every passenger expected
 june_27_kde_1 <- june_27_base |> 
   mutate(
     arrivals = map2(.x = .kde, .y = passengers,  ~ks::rkde(.y, .x))
@@ -231,7 +239,19 @@ june_27_kde_1 |>
     x = 'Minutes Prior to Departure',
     y = 'Count'
   )
+```
 
+It matches the arrival curves from the plot above! 
+
+Taking those arrivals, we can generate an timestamp when each passenger arrives. The plot below is the aggregate number of passengers arriving by minute over the course of the day. 
+
+
+```{r}
+
+# This is a common procedure I have followed before
+# Get a list of values for each flight, 
+# Unnest to create 1 row per passenger
+# Subtract the minutes prior sampled from arrival curve, from the departure tiem
 june_27_arrivals_long <- june_27_kde_1 |> 
   unnest(arrivals) |> 
   mutate(model_dttm = dep_dttm - minutes(round(arrivals))) 
@@ -255,11 +275,19 @@ june_27_arrivals_long |>
 
 ```
 
+This is great, it is just one scenario thought. 
+
 ### Journey to 10k
 
-How many simulations do you need? I often see "this analysis was based of 10,000" simulations, but if your underlying function doesn't actually match the real world -- then there isn't a number that will monte carlo your way out of it. The answer is, as always, it depends. 
+I often see statements like "this analysis was based on 10,000 simulations," but if your underlying function doesn't accurately reflect the real world, no amount of simulations will compensate for that. The answer to how many simulations you need is, as always, "it depends."
 
-We are simulating one metric right now, maybe 1,000 is enough for this. Also what is the goal or intended outcome the model serves? If it is extreme tail end outcomes, 1,000 might not be enough. 100,000 might not be enough. The larger number of simulations will be important as we incorporate other metrics like load and bag factors to it. 
+What is the goal or intended outcome of your model? If you're focusing on extreme tail-end outcomes, 1,000 simulations might not be sufficient. Even 100,000 simulations might fall short if your distribution doesn't accurately represent reality.
+
+A larger number of simulations becomes critical as we incorporate other metrics, like load and bag factors, into the model. Currently, we're simulating a single metric, and 1,000 simulations might be reasonable for this. The arrival curve is a well-studied concept, and we have reasonable confidence that the distribution is accurately representing the real world now. If it wasn't, we would want to look at expanding the range of the distribution.  
+
+### Replicating the sampling over 10,000 simulations
+
+No magic number in 10,000, we just want more than 1. 
 
 #### Steps
 
@@ -269,13 +297,9 @@ We are simulating one metric right now, maybe 1,000 is enough for this. Also wha
 4. Unnest the arrival column to represent 1 row for every passenger, in every simulation
 
 
-But wait... 
-
-
 ```{r}
-#| code-fold: false
 
-SIMS <- 100
+SIMS <- 10
 
 june_27_kde_100 <- june_27_base |> 
   mutate(sim_number = list(1:SIMS)) |> 
@@ -285,6 +309,46 @@ june_27_kde_100 <- june_27_base |>
   ) |> 
   unnest(arrivals)
 
+june_27_kde_100 |> 
+  mutate(model_dttm = dep_dttm - minutes(round(arrivals))) |> 
+  count(origin, sim_number, model_dttm) |> 
+  ggplot(aes(model_dttm, n)) + 
+  geom_point(aes(group = sim_number), alpha = 0.5, color = 'grey') + 
+  geom_point(
+    aes(color = origin),
+    alpha = 0.7 , 
+    data =  june_27_arrivals_long |> count(origin, model_dttm)
+    ) +
+  facet_wrap(~origin, ncol = 1) +
+  theme(
+    legend.position = 'none'
+  ) +
+  labs(
+    title = 'Passenger Arrivals Throughout the Day',
+    x = 'Minutes Prior to Departure',
+    y = 'Count'
+  )
+
+
+```
+
+For each station, we have a single simulation plotted in color on top of all of the simulations. The overall curve does not change that much, as that would be determined more on simulating number of passengers and overall flight counts. However, adding a distribution to when passengers arrive introduces a significant amount of variance.
+
+The order that the inputs would impact the overall passenger and bag profile is: 
+
+1. **Flight Schedule:** Seat capacities and distribution of flights
+2. **Load Factors:** How many of those seats are occupied
+3. **Local Factor:** How many of those occupied seats are local
+4. **Arrival**: When do the local occupied seats arrive at the airport
+
+### Why Are We Doing It Backwards?
+
+While the flight distribution has the biggest impact, it also changes infrequently. Human behavior and the random factors associated with arrivals change constantly. If we are planning for a specific flight schedule, we should at a minimum account for all arrival distributions.
+
+
+But wait...
+
+```{r}
 
 paste("Number of rows:", nrow(june_27_kde_100))
 
@@ -292,13 +356,22 @@ paste("Number of rows:", nrow(june_27_kde_100))
 
 Using only 100 simulations created 11.6M rows. Yikes! 
 
-Using dataframes isn't the only solution to manage this data. However, since they act as interfaces for handling related vectors, dataframes are by far the easiest tool for a typical analyst. For example, calculating the time of day a passenger arrives by subtracting one column from another datetime column is so easy with dataframes an AI bot could do it.
+Getting to 1,000 simulations seems daunting, much less 10,000. Using dataframes isn't the only solution to manage this data. However, since they act as interfaces for handling related vectors, dataframes are by far the easiest tool for a typical analyst. For example, calculating the time of day a passenger arrives by subtracting one column from another datetime column is so easy with dataframes an AI bot could do it.
 
 The tradeoff for this convenience is the memory and data capacity it consumes. Imagine running a web application with adjustable sliders for flight counts at a station to predict wait times at a checkpoint. If you're using R dataframes and dplyr, you'd better have plenty of RAM—and a lunch break planned for after you interact with the application.
 
-## Do I have an answer? 
+### Do I have an answer? 
 
-Not yet. 
+Not yet, but I'm gonna blog my way through it. 
+
+#### Possible solutions
+
+1. DuckDB 
+2. Writing low level operations in something like Rust with `extendr`
+3. `DataTable`, `Polars`, or other optimized dataframe libraries
+
+
+
 
 
 
