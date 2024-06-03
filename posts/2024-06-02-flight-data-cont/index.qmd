@@ -9,6 +9,332 @@ format:
   html: 
     code-fold: true
     code-summary: "Show the code"
-    df-print: kable
 
 ---
+
+
+## Flight Analytics
+
+In this post, we continue our exploration of modeling passenger and baggage traffic in airports using publicly available data. To streamline our data processing, I created a simple R package [flightanalytics](https://github.com/rplain1/flightanalytics). This package helps to build dataframes from the [Planning Guidelines and Design Standards for TSA](https://iabsc.org/wp-content/uploads/2021/04/Planning-Guidelines-and-Design-Standards-for-Checked-Baggage-Inspection-Systems-V7.0.pdf) study. 
+
+For now, we will use the arrival curve and some carrier-level aggregated passenger and bag data from the TSA document. The `flightanalytics` package is used for storing the logic required to build these tables from the PDF document. By consolidating this logic into a package, we can easily reuse and extend it if we encounter more repetitive code patterns in future work. 
+
+I know "we" is just me and my wife right now. 
+
+
+```{r}
+#| warning: false
+
+library(tidyverse)
+library(nycflights13)
+library(flightanalytics) # hey look thats new
+library(ks) # this is new too
+
+
+june27_flights <- flights |> 
+  mutate(dep_dttm = time_hour + minutes(minute)) |> 
+  filter(day == 27 , month == 6)
+
+
+arrival_curve <- get_pgds_arrival_curve() |> 
+  clean_arrival_curve()
+
+
+pax_bag_data <- get_pgds_passenger_bag_factors()
+
+```
+
+
+### Recap of Arrival curve
+
+Here's a summary of the arrival curves from the [previous post](https://www.ryanplain.com/posts/2024-06-01-flight-data/), which show the distribution using a continuous custom distribution:
+
+
+
+```{r}
+
+set.seed(0527)
+
+arrival_samples <- arrival_curve |> 
+  group_by(name) |> 
+  nest() |> 
+  ungroup() |> 
+  mutate(
+    samples = map(.x = data, ~sample(.x$minutes_prior, 1000, replace = TRUE, prob = .x$value))
+  ) |> 
+  mutate(
+    d = map(samples, ~density(.x)),
+    density_x = map(d, "x"),
+    density_y = map(d, "y"),
+    dens = tibble(dens_x = map(d, "x"), dens_y = map(d, "y"))
+  ) |> 
+  ungroup() 
+
+arrival_kde <- arrival_samples |> 
+  select(name, starts_with('density')) |> 
+  unnest(c(density_x, density_y)) |> 
+  filter(density_x > 0) |> 
+  group_by(name) |> 
+  mutate(y = density_y / sum(density_y)) |>
+  select(name, minutes_prior = density_x, perc = y) |> 
+  ungroup()
+
+arrival_kde |> 
+  ggplot(aes(minutes_prior, perc, color = name)) +
+  geom_line(linewidth = 2) + 
+  labs(
+    title = 'KDE of Arrival Curve',
+    x = 'Minutes Prior',
+    y = NULL,
+    color = NULL,
+    fill = NULL,
+  ) +
+  scale_y_continuous(labels = scales::percent_format()) +
+  scale_x_reverse() + 
+  theme(legend.position = 'top')
+
+
+```
+
+
+### What's a KDE?
+
+One thing we touched on last time was using the Kernel Density Estimate (KDE). If you have every used `plot(density(x))`, you have used a KDE. You can learn more about it [here](https://en.wikipedia.org/wiki/Kernel_density_estimation), but to summarize it is a smoothing function to estimate the probability density function of a random variable.
+
+::: {.callout-note collapse="true"}
+## Make it Simple
+
+I failed Algebra I multiple times, and I still have trauma from Greek letters in grad school. I was someone who learned math and statistics more effectively through programming. It's not for everyone (the way math is traditionally taught also isn't for everyone), but I found everything easier to learn inside a for loop. Colors help too. 
+
+I'll link to Wikipedia and other sources to detail the math used, because that is important too. Just learn however is best for you, and it doesn't have to be how everyone else does it. If I add context it will be to make it as simple to grasp as possible, and I will never use the Greek alphabet.  
+:::
+
+
+### A quick example
+
+In this example, 100 values are sampled from a normal distribution. However, due to the relatively small sample size, the resulting distribution may not precisely match the true normal distribution. Interestingly, I set my anniversary date as the random seed for reproducibility, and it unexpectedly yielded a bimodal density in the sample. The flexibility of the smoothing function is what allows us to match the unique arrival curve shapes. 
+
+```{r}
+#| warning: false
+
+# Generate example data
+set.seed(0527)  # For reproducibility
+data <- data.frame(value = rnorm(100, mean = 5, sd = 2))
+
+# Plot the histogram with density line
+ggplot(data, aes(x = value)) +
+  geom_histogram(aes(y = after_stat(density)), binwidth = 0.5, fill = "blue", alpha = 0.5) +
+  geom_density(color = "red", linewidth = 1) +
+  labs(title = "Histogram with Density Line",
+       x = "Value",
+       y = "Density") +
+  theme_minimal()
+
+```
+
+
+
+### Create Base Flight Schedule
+
+At the moment, this code is some `dplyr` mess that should be wrapped into a function to clean the flight schedule into a usable format. The main takeaway is that we have a flight schedule with the estimated passengers and bags for each flight.
+
+```{r}
+
+
+airports <- airports |> 
+  mutate(domestic = str_detect(tzone, 'America'),
+         domestic = replace_na(domestic, FALSE))
+
+
+
+ arrival_curve_kde <- arrival_curve |> 
+    group_by(name) |> 
+    nest() |> 
+    ungroup() |> 
+    mutate(
+      samples = map(.x = data, ~sample(.x$minutes_prior, 1000, replace = TRUE, prob = .x$value))
+    ) |> 
+    mutate(
+      .kde = map(.x = samples, ~ks::kde(.x)),
+    ) |> 
+    mutate(
+      peak = name == 'peak_domestic_8am',
+      domestic = !str_detect(name, 'international')
+      )
+
+
+
+june_27_base <- june27_flights |> 
+  left_join(planes |> select(tailnum, seats), by = c('tailnum')) |> 
+  left_join(pax_bag_data, by = c('carrier')) |> 
+  left_join(airports, by =c('dest' = 'faa')) |> 
+  mutate(
+    domestic = replace_na(domestic, FALSE),
+    join_arr_col = case_when(
+      domestic == FALSE ~ 'international',
+      sched_dep_time <= 800 ~ 'peak_domestic_8am',
+      TRUE ~ 'off_peak_domestic'
+    ),
+    # use median values for missing airline data
+    across(c(contains('factor'), avg_num_bags ), \(x) replace_na(x, median(x, na.rm = TRUE)))
+  ) |> 
+  group_by(carrier) |> 
+  mutate(seats = replace_na(seats, median(seats, na.rm = TRUE))) |> 
+  ungroup() |> 
+  mutate(
+    passengers = round(seats * load_factor),
+    passengers_with_bag = round(seats * check_bag_factor),
+    num_of_bags = round(passengers * avg_num_bags)
+  ) |> 
+  left_join(
+    arrival_curve_kde,
+      by = c('join_arr_col' = 'name'),
+    suffix = c('_base', '_arr_curve')
+    ) |> 
+    select(carrier, origin, dest, dep_dttm, passengers:num_of_bags, arr_curve = join_arr_col, .kde)
+
+june_27_base |> 
+  head()
+```
+
+
+# Sampling from distribution
+
+Previously, we applied a flat factor across the 10-minute arrival curve. Now, we're adding some variance to enhance our modeling.
+
+Each flight now has one of the three different types of arrival curves associated with it. With the number of expected passengers, we want to have a value of how many minutes prior to departure they arrive. To implement this, we're utilizing `purrr` to apply the function `ks::rkde` to each row, adjusting for the number of passengers dynamically.
+
+This approach enables us to introduce variability into our arrival curve modeling, enhancing the fidelity of our simulations and better capturing real-world scenarios.
+
+```{r}
+set.seed(1234)
+june_27_kde_1 <- june_27_base |> 
+  mutate(
+    arrivals = map2(.x = .kde, .y = passengers,  ~ks::rkde(.y, .x))
+  ) 
+
+june_27_kde_1 |> 
+  head()
+
+june_27_kde_1 |> 
+  unnest(arrivals) |> 
+  ggplot(aes(arrivals, fill = arr_curve)) + 
+  geom_histogram(bins=50) + 
+  facet_wrap(~arr_curve, ncol = 1, scales = 'free_y') +
+  scale_x_reverse() +
+  theme(
+    legend.position = 'none'
+  ) +
+  labs(
+    title = 'Sampled Arrivals from Arrival Curve',
+    subtitle = 'Note: the y axis are on different scales due to the disproportionate amount of domestic flights',
+    x = 'Minutes Prior to Departure',
+    y = 'Count'
+  )
+
+june_27_arrivals_long <- june_27_kde_1 |> 
+  unnest(arrivals) |> 
+  mutate(model_dttm = dep_dttm - minutes(round(arrivals))) 
+  
+june_27_arrivals_long |> 
+  head()
+
+june_27_arrivals_long |> 
+  count(origin, model_dttm) |> 
+  ggplot(aes(model_dttm, n, color = origin)) + 
+  geom_line() + 
+  facet_wrap(~origin, ncol = 1) +
+  theme(
+    legend.position = 'none'
+  ) +
+  labs(
+    title = 'Passenger Arrivals Throughout the Day',
+    x = 'Minutes Prior to Departure',
+    y = 'Count'
+  )
+
+```
+
+### Journey to 10k
+
+How many simulations do you need? I often see "this analysis was based of 10,000" simulations, but if your underlying function doesn't actually match the real world -- then there isn't a number that will monte carlo your way out of it. The answer is, as always, it depends. 
+
+We are simulating one metric right now, maybe 1,000 is enough for this. Also what is the goal or intended outcome the model serves? If it is extreme tail end outcomes, 1,000 might not be enough. 100,000 might not be enough. The larger number of simulations will be important as we incorporate other metrics like load and bag factors to it. 
+
+#### Steps
+
+1. Take the flight schedule and create a number of simulations that you want to do
+2. Replicate each flight for the number of sims, this example uses `tidyr::unnest()` of a list column
+3. Apply the sampling function for each passenger
+4. Unnest the arrival column to represent 1 row for every passenger, in every simulation
+
+
+But wait... 
+
+
+```{r}
+#| code-fold: false
+
+SIMS <- 100
+
+june_27_kde_100 <- june_27_base |> 
+  mutate(sim_number = list(1:SIMS)) |> 
+  unnest(sim_number) |> 
+  mutate(
+    arrivals = map2(.x = .kde, .y = passengers,  ~ks::rkde(.y, .x))
+  ) |> 
+  unnest(arrivals)
+
+
+paste("Number of rows:", nrow(june_27_kde_100))
+
+```
+
+Using only 100 simulations created 11.6M rows. Yikes! 
+
+Using dataframes isn't the only solution to manage this data. However, since they act as interfaces for handling related vectors, dataframes are by far the easiest tool for a typical analyst. For example, calculating the time of day a passenger arrives by subtracting one column from another datetime column is so easy with dataframes an AI bot could do it.
+
+The tradeoff for this convenience is the memory and data capacity it consumes. Imagine running a web application with adjustable sliders for flight counts at a station to predict wait times at a checkpoint. If you're using R dataframes and dplyr, you'd better have plenty of RAM—and a lunch break planned for after you interact with the application.
+
+## Do I have an answer? 
+
+Not yet. 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
