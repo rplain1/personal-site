@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 <meta name="author" content="Ryan Plain">
-<meta name="dcterms.date" content="2024-06-02">
+<meta name="dcterms.date" content="2024-06-07">
 <meta name="description" content="Adding variance using the KDE of each arrival curve">
 
 <title>Nothing Plain About It - Arrival Curve Sampling</title>
@@ -172,7 +172,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <div>
       <div class="quarto-title-meta-heading">Published</div>
       <div class="quarto-title-meta-contents">
-        <p class="date">June 2, 2024</p>
+        <p class="date">June 7, 2024</p>
       </div>
     </div>
     
@@ -203,17 +203,16 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(flightanalytics) <span class="co"># hey look thats new</span></span>
 <span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(ks) <span class="co"># this is new too</span></span>
 <span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>june27_flights <span class="ot">&lt;-</span> flights <span class="sc">|&gt;</span> </span>
-<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">dep_dttm =</span> time_hour <span class="sc">+</span> <span class="fu">minutes</span>(minute)) <span class="sc">|&gt;</span> </span>
-<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(day <span class="sc">==</span> <span class="dv">27</span> , month <span class="sc">==</span> <span class="dv">6</span>)</span>
-<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>pax_bag_data <span class="ot">&lt;-</span> <span class="fu">get_pgds_passenger_bag_factors</span>()</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>arrival_curve <span class="ot">&lt;-</span> <span class="fu">get_pgds_arrival_curve</span>() <span class="sc">|&gt;</span> </span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">clean_arrival_curve</span>() <span class="sc">|&gt;</span> </span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">create_arrival_curve_kde</span>()</span>
 <span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>arrival_curve <span class="ot">&lt;-</span> <span class="fu">get_pgds_arrival_curve</span>() <span class="sc">|&gt;</span> </span>
-<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">clean_arrival_curve</span>()</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>flight_schedule <span class="ot">&lt;-</span> <span class="fu">clean_and_join_nycflights</span>()</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>pax_bag_data <span class="ot">&lt;-</span> <span class="fu">get_pgds_passenger_bag_factors</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>pax_bag_data <span class="ot">&lt;-</span> <span class="fu">get_pgds_passenger_bag_factors</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 </div>
 <section id="recap-of-arrival-curve" class="level3">
@@ -224,43 +223,41 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <summary>Code</summary>
 <div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">0527</span>)</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>arrival_samples <span class="ot">&lt;-</span> arrival_curve <span class="sc">|&gt;</span> </span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(name) <span class="sc">|&gt;</span> </span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">nest</span>() <span class="sc">|&gt;</span> </span>
-<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ungroup</span>() <span class="sc">|&gt;</span> </span>
-<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
-<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">samples =</span> <span class="fu">map</span>(<span class="at">.x =</span> data, <span class="sc">~</span><span class="fu">sample</span>(.x<span class="sc">$</span>minutes_prior, <span class="dv">1000</span>, <span class="at">replace =</span> <span class="cn">TRUE</span>, <span class="at">prob =</span> .x<span class="sc">$</span>value))</span>
-<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span> </span>
-<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
-<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>    <span class="at">d =</span> <span class="fu">map</span>(samples, <span class="sc">~</span><span class="fu">density</span>(.x)),</span>
-<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>    <span class="at">density_x =</span> <span class="fu">map</span>(d, <span class="st">"x"</span>),</span>
-<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>    <span class="at">density_y =</span> <span class="fu">map</span>(d, <span class="st">"y"</span>),</span>
-<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>    <span class="at">dens =</span> <span class="fu">tibble</span>(<span class="at">dens_x =</span> <span class="fu">map</span>(d, <span class="st">"x"</span>), <span class="at">dens_y =</span> <span class="fu">map</span>(d, <span class="st">"y"</span>))</span>
-<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span> </span>
-<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ungroup</span>() </span>
-<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>arrival_kde <span class="ot">&lt;-</span> arrival_samples <span class="sc">|&gt;</span> </span>
-<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(name, <span class="fu">starts_with</span>(<span class="st">'density'</span>)) <span class="sc">|&gt;</span> </span>
-<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>  <span class="fu">unnest</span>(<span class="fu">c</span>(density_x, density_y)) <span class="sc">|&gt;</span> </span>
-<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(density_x <span class="sc">&gt;</span> <span class="dv">0</span>) <span class="sc">|&gt;</span> </span>
-<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(name) <span class="sc">|&gt;</span> </span>
-<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">y =</span> density_y <span class="sc">/</span> <span class="fu">sum</span>(density_y)) <span class="sc">|&gt;</span></span>
-<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(name, <span class="at">minutes_prior =</span> density_x, <span class="at">perc =</span> y) <span class="sc">|&gt;</span> </span>
-<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ungroup</span>()</span>
-<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a>arrival_kde <span class="sc">|&gt;</span> </span>
-<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(<span class="fu">aes</span>(minutes_prior, perc, <span class="at">color =</span> name)) <span class="sc">+</span></span>
-<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_line</span>(<span class="at">linewidth =</span> <span class="dv">2</span>) <span class="sc">+</span> </span>
-<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(</span>
-<span id="cb2-31"><a href="#cb2-31" aria-hidden="true" tabindex="-1"></a>    <span class="at">title =</span> <span class="st">'KDE of Arrival Curve'</span>,</span>
-<span id="cb2-32"><a href="#cb2-32" aria-hidden="true" tabindex="-1"></a>    <span class="at">x =</span> <span class="st">'Minutes Prior'</span>,</span>
-<span id="cb2-33"><a href="#cb2-33" aria-hidden="true" tabindex="-1"></a>    <span class="at">y =</span> <span class="cn">NULL</span>,</span>
-<span id="cb2-34"><a href="#cb2-34" aria-hidden="true" tabindex="-1"></a>    <span class="at">color =</span> <span class="cn">NULL</span>,</span>
-<span id="cb2-35"><a href="#cb2-35" aria-hidden="true" tabindex="-1"></a>    <span class="at">fill =</span> <span class="cn">NULL</span>,</span>
-<span id="cb2-36"><a href="#cb2-36" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
-<span id="cb2-37"><a href="#cb2-37" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_y_continuous</span>(<span class="at">labels =</span> scales<span class="sc">::</span><span class="fu">percent_format</span>()) <span class="sc">+</span></span>
-<span id="cb2-38"><a href="#cb2-38" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_x_reverse</span>() <span class="sc">+</span> </span>
-<span id="cb2-39"><a href="#cb2-39" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(<span class="at">legend.position =</span> <span class="st">'top'</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>arrival_samples <span class="ot">&lt;-</span> <span class="fu">get_pgds_arrival_curve</span>() <span class="sc">|&gt;</span> </span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">clean_arrival_curve</span>() <span class="sc">|&gt;</span> </span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(name) <span class="sc">|&gt;</span> </span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">nest</span>() <span class="sc">|&gt;</span> </span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ungroup</span>() <span class="sc">|&gt;</span> </span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>    <span class="at">samples =</span> <span class="fu">map</span>(<span class="at">.x =</span> data, <span class="sc">~</span><span class="fu">sample</span>(.x<span class="sc">$</span>minutes_prior, <span class="dv">1000</span>, <span class="at">replace =</span> <span class="cn">TRUE</span>, <span class="at">prob =</span> .x<span class="sc">$</span>value))</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span> </span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>    <span class="at">d =</span> <span class="fu">map</span>(samples, <span class="sc">~</span><span class="fu">density</span>(.x)),</span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>    <span class="at">density_x =</span> <span class="fu">map</span>(d, <span class="st">"x"</span>),</span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>    <span class="at">density_y =</span> <span class="fu">map</span>(d, <span class="st">"y"</span>),</span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>    <span class="at">dens =</span> <span class="fu">tibble</span>(<span class="at">dens_x =</span> <span class="fu">map</span>(d, <span class="st">"x"</span>), <span class="at">dens_y =</span> <span class="fu">map</span>(d, <span class="st">"y"</span>))</span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span> </span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(name, <span class="fu">starts_with</span>(<span class="st">'density'</span>)) <span class="sc">|&gt;</span> </span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>  <span class="fu">unnest</span>(<span class="fu">c</span>(density_x, density_y)) <span class="sc">|&gt;</span> </span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(density_x <span class="sc">&gt;</span> <span class="dv">0</span>) <span class="sc">|&gt;</span> </span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(name) <span class="sc">|&gt;</span> </span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">y =</span> density_y <span class="sc">/</span> <span class="fu">sum</span>(density_y)) <span class="sc">|&gt;</span></span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(name, <span class="at">minutes_prior =</span> density_x, <span class="at">perc =</span> y) <span class="sc">|&gt;</span> </span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ungroup</span>()</span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>arrival_samples <span class="sc">|&gt;</span> </span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(<span class="fu">aes</span>(minutes_prior, perc, <span class="at">color =</span> name)) <span class="sc">+</span></span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_line</span>(<span class="at">linewidth =</span> <span class="dv">2</span>) <span class="sc">+</span> </span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(</span>
+<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a>    <span class="at">title =</span> <span class="st">'KDE of Arrival Curve'</span>,</span>
+<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a>    <span class="at">x =</span> <span class="st">'Minutes Prior'</span>,</span>
+<span id="cb2-31"><a href="#cb2-31" aria-hidden="true" tabindex="-1"></a>    <span class="at">y =</span> <span class="cn">NULL</span>,</span>
+<span id="cb2-32"><a href="#cb2-32" aria-hidden="true" tabindex="-1"></a>    <span class="at">color =</span> <span class="cn">NULL</span>,</span>
+<span id="cb2-33"><a href="#cb2-33" aria-hidden="true" tabindex="-1"></a>    <span class="at">fill =</span> <span class="cn">NULL</span>,</span>
+<span id="cb2-34"><a href="#cb2-34" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
+<span id="cb2-35"><a href="#cb2-35" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_y_continuous</span>(<span class="at">labels =</span> scales<span class="sc">::</span><span class="fu">percent_format</span>()) <span class="sc">+</span></span>
+<span id="cb2-36"><a href="#cb2-36" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_x_reverse</span>() <span class="sc">+</span> </span>
+<span id="cb2-37"><a href="#cb2-37" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(<span class="at">legend.position =</span> <span class="st">'top'</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 <div class="cell-output-display">
 <p><img src="index_files/figure-html/unnamed-chunk-2-1.png" class="img-fluid" width="672"></p>
@@ -269,24 +266,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="whats-a-kde" class="level3">
 <h3 class="anchored" data-anchor-id="whats-a-kde">What’s a KDE?</h3>
-<p>One thing we touched on last time was using the Kernel Density Estimate (KDE). If you have every used <code>plot(density(x))</code>, you have used a KDE. You can learn more about it <a href="https://en.wikipedia.org/wiki/Kernel_density_estimation">here</a>, but to summarize it is a smoothing function to estimate the probability density function of a random variable.</p>
-<div class="callout callout-style-default callout-note callout-titled">
-<div class="callout-header d-flex align-content-center" data-bs-toggle="collapse" data-bs-target=".callout-1-contents" aria-controls="callout-1" aria-expanded="false" aria-label="Toggle callout">
-<div class="callout-icon-container">
-<i class="callout-icon"></i>
-</div>
-<div class="callout-title-container flex-fill">
-Make it Simple
-</div>
-<div class="callout-btn-toggle d-inline-block border-0 py-1 ps-1 pe-0 float-end"><i class="callout-toggle"></i></div>
-</div>
-<div id="callout-1" class="callout-1-contents callout-collapse collapse">
-<div class="callout-body-container callout-body">
-<p>I failed Algebra I multiple times, and I still have trauma from Greek letters in grad school. I was someone who learned math and statistics more effectively through programming. It’s not for everyone (the way math is traditionally taught also isn’t for everyone), but I found everything easier to learn inside a for loop. Colors help too.</p>
-<p>I’ll link to Wikipedia and other sources to detail the math used, because that is important too. Just learn however is best for you, and it doesn’t have to be how everyone else does it. If I add context it will be to make it as simple to grasp as possible, and I will never use the Greek alphabet.</p>
-</div>
-</div>
-</div>
+<p>One thing we touched on last time was using the KDE (Kernel Density Estimate). If you have ever used <code>plot(density(x))</code>, the you have effectively used a KDE. You can learn more about it <a href="https://en.wikipedia.org/wiki/Kernel_density_estimation">here</a>, but to summarize it is a smoothing function to estimate the probability density function of a random variable.</p>
 </section>
 <section id="a-quick-example" class="level3">
 <h3 class="anchored" data-anchor-id="a-quick-example">A quick example</h3>
@@ -312,94 +292,56 @@ Make it Simple
 </div>
 </div>
 </section>
-<section id="create-base-flight-schedule" class="level3">
-<h3 class="anchored" data-anchor-id="create-base-flight-schedule">Create Base Flight Schedule</h3>
-<p>At the moment, this code is some <code>dplyr</code> mess that should be wrapped into a function to clean the flight schedule into a usable format. The main takeaway is that we have a flight schedule with the estimated passengers and bags for each flight.</p>
+<section id="sampling-from-distribution" class="level3">
+<h3 class="anchored" data-anchor-id="sampling-from-distribution">Sampling from distribution</h3>
+<p>Previously, we applied a flat factor across the 10-minute arrival curve. Now, we’re adding some variance to enhance our modeling.</p>
+<p>Each flight now has one of the three different types of arrival curves associated with it. With the number of expected passengers, we want to have random values for each passenger representing how many minutes prior to departure they arrive. To implement this, we’re utilizing <code>purrr</code> to apply the function <code>ks::rkde</code> to each row, adjusting for the number of passengers dynamically.</p>
+<p>This approach enables us to introduce variability into our arrival curve modeling, enhancing the simulation and better capturing real-world scenarios.</p>
 <div class="cell">
 <details>
 <summary>Code</summary>
-<div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>airports <span class="ot">&lt;-</span> airports <span class="sc">|&gt;</span> </span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">domestic =</span> <span class="fu">str_detect</span>(tzone, <span class="st">'America'</span>),</span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>         <span class="at">domestic =</span> <span class="fu">replace_na</span>(domestic, <span class="cn">FALSE</span>))</span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a> arrival_curve_kde <span class="ot">&lt;-</span> arrival_curve <span class="sc">|&gt;</span> </span>
-<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">group_by</span>(name) <span class="sc">|&gt;</span> </span>
-<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">nest</span>() <span class="sc">|&gt;</span> </span>
-<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">ungroup</span>() <span class="sc">|&gt;</span> </span>
-<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>    <span class="co"># sample 1000 values from 10 minute increments</span></span>
-<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(</span>
-<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>      <span class="at">samples =</span> <span class="fu">map</span>(<span class="at">.x =</span> data, <span class="sc">~</span><span class="fu">sample</span>(.x<span class="sc">$</span>minutes_prior, <span class="dv">1000</span>, <span class="at">replace =</span> <span class="cn">TRUE</span>, <span class="at">prob =</span> .x<span class="sc">$</span>value))</span>
-<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">|&gt;</span> </span>
-<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>   <span class="co"># apply KDE function, here {ks} is used which was different than the </span></span>
-<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>   <span class="co"># last post that used `d = map(samples, ~density(.x))`,</span></span>
-<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(</span>
-<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>      <span class="at">.kde =</span> <span class="fu">map</span>(<span class="at">.x =</span> samples, <span class="sc">~</span>ks<span class="sc">::</span><span class="fu">kde</span>(.x)),</span>
-<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">|&gt;</span> </span>
-<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(</span>
-<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>      <span class="at">peak =</span> name <span class="sc">==</span> <span class="st">'peak_domestic_8am'</span>,</span>
-<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a>      <span class="at">domestic =</span> <span class="sc">!</span><span class="fu">str_detect</span>(name, <span class="st">'international'</span>)</span>
-<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a>      )</span>
-<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a>june_27_base <span class="ot">&lt;-</span> june27_flights <span class="sc">|&gt;</span> </span>
-<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a>  <span class="co"># join all the tables</span></span>
-<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a>  <span class="fu">left_join</span>(planes <span class="sc">|&gt;</span> <span class="fu">select</span>(tailnum, seats), <span class="at">by =</span> <span class="fu">c</span>(<span class="st">'tailnum'</span>)) <span class="sc">|&gt;</span> </span>
-<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a>  <span class="fu">left_join</span>(pax_bag_data, <span class="at">by =</span> <span class="fu">c</span>(<span class="st">'carrier'</span>)) <span class="sc">|&gt;</span> </span>
-<span id="cb4-31"><a href="#cb4-31" aria-hidden="true" tabindex="-1"></a>  <span class="fu">left_join</span>(airports, <span class="at">by =</span><span class="fu">c</span>(<span class="st">'dest'</span> <span class="ot">=</span> <span class="st">'faa'</span>)) <span class="sc">|&gt;</span> </span>
-<span id="cb4-32"><a href="#cb4-32" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Some stations did not have a timezone, default to non-domestic</span></span>
-<span id="cb4-33"><a href="#cb4-33" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
-<span id="cb4-34"><a href="#cb4-34" aria-hidden="true" tabindex="-1"></a>    <span class="at">domestic =</span> <span class="fu">replace_na</span>(domestic, <span class="cn">FALSE</span>),</span>
-<span id="cb4-35"><a href="#cb4-35" aria-hidden="true" tabindex="-1"></a>    <span class="at">join_arr_col =</span> <span class="fu">case_when</span>(</span>
-<span id="cb4-36"><a href="#cb4-36" aria-hidden="true" tabindex="-1"></a>      domestic <span class="sc">==</span> <span class="cn">FALSE</span> <span class="sc">~</span> <span class="st">'international'</span>,</span>
-<span id="cb4-37"><a href="#cb4-37" aria-hidden="true" tabindex="-1"></a>      sched_dep_time <span class="sc">&lt;=</span> <span class="dv">800</span> <span class="sc">~</span> <span class="st">'peak_domestic_8am'</span>,</span>
-<span id="cb4-38"><a href="#cb4-38" aria-hidden="true" tabindex="-1"></a>      <span class="cn">TRUE</span> <span class="sc">~</span> <span class="st">'off_peak_domestic'</span></span>
-<span id="cb4-39"><a href="#cb4-39" aria-hidden="true" tabindex="-1"></a>    ),</span>
-<span id="cb4-40"><a href="#cb4-40" aria-hidden="true" tabindex="-1"></a>    <span class="co"># use median values for missing airline data</span></span>
-<span id="cb4-41"><a href="#cb4-41" aria-hidden="true" tabindex="-1"></a>    <span class="fu">across</span>(<span class="fu">c</span>(<span class="fu">contains</span>(<span class="st">'factor'</span>), avg_num_bags ), \(x) <span class="fu">replace_na</span>(x, <span class="fu">median</span>(x, <span class="at">na.rm =</span> <span class="cn">TRUE</span>)))</span>
-<span id="cb4-42"><a href="#cb4-42" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span> </span>
-<span id="cb4-43"><a href="#cb4-43" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Fill in the NA seat values for small amount of missing data in planes table</span></span>
-<span id="cb4-44"><a href="#cb4-44" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(carrier) <span class="sc">|&gt;</span> </span>
-<span id="cb4-45"><a href="#cb4-45" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">seats =</span> <span class="fu">replace_na</span>(seats, <span class="fu">median</span>(seats, <span class="at">na.rm =</span> <span class="cn">TRUE</span>))) <span class="sc">|&gt;</span> </span>
-<span id="cb4-46"><a href="#cb4-46" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ungroup</span>() <span class="sc">|&gt;</span> </span>
-<span id="cb4-47"><a href="#cb4-47" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Apply factors to seats to get passengers and bags</span></span>
-<span id="cb4-48"><a href="#cb4-48" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
-<span id="cb4-49"><a href="#cb4-49" aria-hidden="true" tabindex="-1"></a>    <span class="at">passengers =</span> <span class="fu">round</span>(seats <span class="sc">*</span> load_factor),</span>
-<span id="cb4-50"><a href="#cb4-50" aria-hidden="true" tabindex="-1"></a>    <span class="at">passengers_with_bag =</span> <span class="fu">round</span>(seats <span class="sc">*</span> check_bag_factor),</span>
-<span id="cb4-51"><a href="#cb4-51" aria-hidden="true" tabindex="-1"></a>    <span class="at">num_of_bags =</span> <span class="fu">round</span>(passengers <span class="sc">*</span> avg_num_bags)</span>
-<span id="cb4-52"><a href="#cb4-52" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span> </span>
-<span id="cb4-53"><a href="#cb4-53" aria-hidden="true" tabindex="-1"></a>  <span class="fu">left_join</span>(</span>
-<span id="cb4-54"><a href="#cb4-54" aria-hidden="true" tabindex="-1"></a>    arrival_curve_kde,</span>
-<span id="cb4-55"><a href="#cb4-55" aria-hidden="true" tabindex="-1"></a>      <span class="at">by =</span> <span class="fu">c</span>(<span class="st">'join_arr_col'</span> <span class="ot">=</span> <span class="st">'name'</span>),</span>
-<span id="cb4-56"><a href="#cb4-56" aria-hidden="true" tabindex="-1"></a>    <span class="at">suffix =</span> <span class="fu">c</span>(<span class="st">'_base'</span>, <span class="st">'_arr_curve'</span>)</span>
-<span id="cb4-57"><a href="#cb4-57" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">|&gt;</span> </span>
-<span id="cb4-58"><a href="#cb4-58" aria-hidden="true" tabindex="-1"></a>    <span class="fu">select</span>(carrier, origin, dest, dep_dttm, passengers<span class="sc">:</span>num_of_bags, <span class="at">arr_curve =</span> join_arr_col, .kde)</span>
-<span id="cb4-59"><a href="#cb4-59" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-60"><a href="#cb4-60" aria-hidden="true" tabindex="-1"></a>june_27_base <span class="sc">|&gt;</span> </span>
-<span id="cb4-61"><a href="#cb4-61" aria-hidden="true" tabindex="-1"></a>  <span class="fu">head</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>june_27_base <span class="ot">&lt;-</span> flight_schedule <span class="sc">|&gt;</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(month <span class="sc">==</span> <span class="dv">6</span>, day <span class="sc">==</span> <span class="dv">27</span>) <span class="sc">|&gt;</span> </span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>  <span class="co"># join all the tables</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">left_join</span>(pax_bag_data, <span class="at">by =</span> <span class="fu">c</span>(<span class="st">'carrier'</span>)) <span class="sc">|&gt;</span> </span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>  <span class="co"># use median values for missing airline data</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">across</span>(<span class="fu">c</span>(<span class="fu">contains</span>(<span class="st">'factor'</span>), avg_num_bags ), \(x) <span class="fu">replace_na</span>(x, <span class="fu">median</span>(x, <span class="at">na.rm =</span> <span class="cn">TRUE</span>)))</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span> </span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Apply factors to seats to get passengers and bags</span></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>    <span class="at">passengers =</span> <span class="fu">round</span>(seats <span class="sc">*</span> load_factor),</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>    <span class="at">passengers_with_bag =</span> <span class="fu">round</span>(seats <span class="sc">*</span> check_bag_factor),</span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>    <span class="at">num_of_bags =</span> <span class="fu">round</span>(passengers <span class="sc">*</span> avg_num_bags)</span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span> </span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">left_join</span>(</span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>    arrival_curve,</span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>    <span class="at">by =</span> <span class="fu">c</span>(<span class="st">'flight_type'</span> <span class="ot">=</span> <span class="st">'name'</span>),</span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>    <span class="at">suffix =</span> <span class="fu">c</span>(<span class="st">'_base'</span>, <span class="st">'_arr_curve'</span>)</span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span> </span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(carrier, origin, dest, dep_dttm, flight_type, seats, passengers, avg_num_bags, .kde)</span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a>june_27_base <span class="sc">|&gt;</span> </span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a>  <span class="fu">head</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 <div class="cell-output cell-output-stdout">
 <pre><code># A tibble: 6 × 9
-  carrier origin dest  dep_dttm            passengers passengers_with_bag
-  &lt;chr&gt;   &lt;chr&gt;  &lt;chr&gt; &lt;dttm&gt;                   &lt;dbl&gt;               &lt;dbl&gt;
-1 UA      EWR    MIA   2013-06-27 20:10:00        127                  67
-2 B6      JFK    MCO   2013-06-27 21:46:00         18                  18
-3 B6      JFK    FLL   2013-06-27 21:55:00        180                 180
-4 B6      JFK    BUF   2013-06-27 21:10:00         18                  18
-5 UA      EWR    CLE   2013-06-27 20:21:00        127                  67
-6 B6      JFK    BOS   2013-06-27 23:00:00         18                  18
-# ℹ 3 more variables: num_of_bags &lt;dbl&gt;, arr_curve &lt;chr&gt;, .kde &lt;list&gt;</code></pre>
+  carrier origin dest  dep_dttm            flight_type       seats passengers
+  &lt;chr&gt;   &lt;chr&gt;  &lt;chr&gt; &lt;dttm&gt;              &lt;chr&gt;             &lt;dbl&gt;      &lt;dbl&gt;
+1 UA      EWR    MIA   2013-06-27 20:10:00 off_peak_domestic   149        127
+2 B6      JFK    MCO   2013-06-27 21:46:00 off_peak_domestic    20         18
+3 B6      JFK    FLL   2013-06-27 21:55:00 off_peak_domestic   200        180
+4 B6      JFK    BUF   2013-06-27 21:10:00 off_peak_domestic    20         18
+5 UA      EWR    CLE   2013-06-27 20:21:00 off_peak_domestic   149        127
+6 B6      JFK    BOS   2013-06-27 23:00:00 off_peak_domestic    20         18
+# ℹ 2 more variables: avg_num_bags &lt;dbl&gt;, .kde &lt;list&gt;</code></pre>
 </div>
 </div>
 </section>
-</section>
-<section id="sampling-from-distribution" class="level1">
-<h1>Sampling from distribution</h1>
-<p>Previously, we applied a flat factor across the 10-minute arrival curve. Now, we’re adding some variance to enhance our modeling.</p>
-<p>Each flight now has one of the three different types of arrival curves associated with it. With the number of expected passengers, we want to have a value of how many minutes prior to departure they arrive. To implement this, we’re utilizing <code>purrr</code> to apply the function <code>ks::rkde</code> to each row, adjusting for the number of passengers dynamically.</p>
-<p>This approach enables us to introduce variability into our arrival curve modeling, enhancing the fidelity of our simulations and better capturing real-world scenarios.</p>
+<section id="distributions" class="level3">
+<h3 class="anchored" data-anchor-id="distributions">Distributions</h3>
+<p>Examining the output of a single simulation, we observe that the distribution aligns with our expectations based on the KDE. Due to the fewer number of international flights in the schedule, the histogram appears less smooth compared to that of domestic flights. Which is exactly why we want to replicate this.</p>
 <div class="cell">
 <details>
 <summary>Code</summary>
@@ -411,102 +353,121 @@ Make it Simple
 <span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>  ) </span>
 <span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>june_27_kde_1 <span class="sc">|&gt;</span> </span>
-<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">head</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</details>
-<div class="cell-output cell-output-stdout">
-<pre><code># A tibble: 6 × 10
-  carrier origin dest  dep_dttm            passengers passengers_with_bag
-  &lt;chr&gt;   &lt;chr&gt;  &lt;chr&gt; &lt;dttm&gt;                   &lt;dbl&gt;               &lt;dbl&gt;
-1 UA      EWR    MIA   2013-06-27 20:10:00        127                  67
-2 B6      JFK    MCO   2013-06-27 21:46:00         18                  18
-3 B6      JFK    FLL   2013-06-27 21:55:00        180                 180
-4 B6      JFK    BUF   2013-06-27 21:10:00         18                  18
-5 UA      EWR    CLE   2013-06-27 20:21:00        127                  67
-6 B6      JFK    BOS   2013-06-27 23:00:00         18                  18
-# ℹ 4 more variables: num_of_bags &lt;dbl&gt;, arr_curve &lt;chr&gt;, .kde &lt;list&gt;,
-#   arrivals &lt;list&gt;</code></pre>
-</div>
-<details>
-<summary>Code</summary>
-<div class="sourceCode cell-code" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>june_27_kde_1 <span class="sc">|&gt;</span> </span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">unnest</span>(arrivals) <span class="sc">|&gt;</span> </span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(<span class="fu">aes</span>(arrivals, <span class="at">fill =</span> arr_curve)) <span class="sc">+</span> </span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_histogram</span>(<span class="at">bins=</span><span class="dv">50</span>) <span class="sc">+</span> </span>
-<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">facet_wrap</span>(<span class="sc">~</span>arr_curve, <span class="at">ncol =</span> <span class="dv">1</span>, <span class="at">scales =</span> <span class="st">'free_y'</span>) <span class="sc">+</span></span>
-<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_x_reverse</span>() <span class="sc">+</span></span>
-<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(</span>
-<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">legend.position =</span> <span class="st">'none'</span></span>
-<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
-<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(</span>
-<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>    <span class="at">title =</span> <span class="st">'Sampled Arrivals from Arrival Curve'</span>,</span>
-<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>    <span class="at">subtitle =</span> <span class="st">'Note: the y axis are on different scales due to the disproportionate amount of domestic flights'</span>,</span>
-<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>    <span class="at">x =</span> <span class="st">'Minutes Prior to Departure'</span>,</span>
-<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>    <span class="at">y =</span> <span class="st">'Count'</span></span>
-<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">unnest</span>(arrivals) <span class="sc">|&gt;</span> </span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(<span class="fu">aes</span>(arrivals, <span class="at">fill =</span> flight_type)) <span class="sc">+</span> </span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_histogram</span>(<span class="at">bins=</span><span class="dv">50</span>) <span class="sc">+</span> </span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>  <span class="fu">facet_wrap</span>(<span class="sc">~</span>flight_type, <span class="at">ncol =</span> <span class="dv">1</span>, <span class="at">scales =</span> <span class="st">'free_y'</span>) <span class="sc">+</span></span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_x_reverse</span>() <span class="sc">+</span></span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(</span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>    <span class="at">legend.position =</span> <span class="st">'none'</span></span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(</span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>    <span class="at">title =</span> <span class="st">'Sampled Arrivals from Arrival Curve'</span>,</span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>    <span class="at">subtitle =</span> <span class="st">'Note: the y axis are on different scales due to the disproportionate amount of domestic flights'</span>,</span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a>    <span class="at">x =</span> <span class="st">'Minutes Prior to Departure'</span>,</span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a>    <span class="at">y =</span> <span class="st">'Count'</span></span>
+<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 <div class="cell-output-display">
 <p><img src="index_files/figure-html/unnamed-chunk-5-1.png" class="img-fluid" width="672"></p>
 </div>
 </div>
-<p>It matches the arrival curves from the plot above!</p>
-<p>Taking those arrivals, we can generate an timestamp when each passenger arrives. The plot below is the aggregate number of passengers arriving by minute over the course of the day.</p>
+</section>
+<section id="one-flight-several-distirbutions" class="level3">
+<h3 class="anchored" data-anchor-id="one-flight-several-distirbutions">One Flight, Several Distirbutions</h3>
+<p>n this example, we examine a single flight and draw arrival times from the arrival curve three independent times. Each resulting distribution differs, and when we aggregate the data across all flights and simulations throughout the day, it significantly impacts the number of passengers arriving at any given time.</p>
 <div class="cell">
 <details>
 <summary>Code</summary>
-<div class="sourceCode cell-code" id="cb9"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># This is a common procedure I have followed before</span></span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Get a list of values for each flight, </span></span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Unnest to create 1 row per passenger</span></span>
-<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Subtract the minutes prior sampled from arrival curve, from the departure tiem</span></span>
-<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>june_27_arrivals_long <span class="ot">&lt;-</span> june_27_kde_1 <span class="sc">|&gt;</span> </span>
-<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">unnest</span>(arrivals) <span class="sc">|&gt;</span> </span>
-<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">model_dttm =</span> dep_dttm <span class="sc">-</span> <span class="fu">minutes</span>(<span class="fu">round</span>(arrivals))) </span>
-<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>  </span>
-<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>june_27_arrivals_long <span class="sc">|&gt;</span> </span>
-<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">head</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</details>
-<div class="cell-output cell-output-stdout">
-<pre><code># A tibble: 6 × 11
-  carrier origin dest  dep_dttm            passengers passengers_with_bag
-  &lt;chr&gt;   &lt;chr&gt;  &lt;chr&gt; &lt;dttm&gt;                   &lt;dbl&gt;               &lt;dbl&gt;
-1 UA      EWR    MIA   2013-06-27 20:10:00        127                  67
-2 UA      EWR    MIA   2013-06-27 20:10:00        127                  67
-3 UA      EWR    MIA   2013-06-27 20:10:00        127                  67
-4 UA      EWR    MIA   2013-06-27 20:10:00        127                  67
-5 UA      EWR    MIA   2013-06-27 20:10:00        127                  67
-6 UA      EWR    MIA   2013-06-27 20:10:00        127                  67
-# ℹ 5 more variables: num_of_bags &lt;dbl&gt;, arr_curve &lt;chr&gt;, .kde &lt;list&gt;,
-#   arrivals &lt;dbl&gt;, model_dttm &lt;dttm&gt;</code></pre>
-</div>
-<details>
-<summary>Code</summary>
-<div class="sourceCode cell-code" id="cb11"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>june_27_arrivals_long <span class="sc">|&gt;</span> </span>
-<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">count</span>(origin, model_dttm) <span class="sc">|&gt;</span> </span>
-<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(<span class="fu">aes</span>(model_dttm, n, <span class="at">color =</span> origin)) <span class="sc">+</span> </span>
-<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_line</span>() <span class="sc">+</span> </span>
-<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">facet_wrap</span>(<span class="sc">~</span>origin, <span class="at">ncol =</span> <span class="dv">1</span>) <span class="sc">+</span></span>
-<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(</span>
-<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">legend.position =</span> <span class="st">'none'</span></span>
-<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
-<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(</span>
-<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a>    <span class="at">title =</span> <span class="st">'Passenger Arrivals Throughout the Day'</span>,</span>
-<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a>    <span class="at">x =</span> <span class="st">'Minutes Prior to Departure'</span>,</span>
-<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a>    <span class="at">y =</span> <span class="st">'Count'</span></span>
-<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">1234</span>)</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Generate random arrivals from the KDE for every passenger expected</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>june_27_kde_1 <span class="sc">|&gt;</span> </span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(carrier <span class="sc">==</span> <span class="st">'UA'</span>, origin <span class="sc">==</span> <span class="st">'EWR'</span>, dest <span class="sc">==</span> <span class="st">'MIA'</span>, <span class="fu">hour</span>(dep_dttm) <span class="sc">==</span> <span class="dv">20</span>) <span class="sc">|&gt;</span> </span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">rn =</span> <span class="fu">list</span>(<span class="fu">paste</span>(<span class="st">"sim"</span>,<span class="dv">1</span><span class="sc">:</span><span class="dv">3</span>))) <span class="sc">|&gt;</span> </span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">unnest</span>(rn) <span class="sc">|&gt;</span> </span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">arrivals =</span> <span class="fu">map2</span>(<span class="at">.x =</span> .kde, <span class="at">.y =</span> passengers,  <span class="sc">~</span>ks<span class="sc">::</span><span class="fu">rkde</span>(.y, .x))) <span class="sc">|&gt;</span> </span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">unnest</span>(arrivals) <span class="sc">|&gt;</span> </span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(<span class="fu">aes</span>(arrivals, <span class="at">fill =</span> rn)) <span class="sc">+</span> </span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_histogram</span>(<span class="at">bins=</span><span class="dv">50</span>) <span class="sc">+</span> </span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>  <span class="fu">facet_wrap</span>(<span class="sc">~</span>rn, <span class="at">ncol =</span> <span class="dv">1</span>, <span class="at">scales =</span> <span class="st">'free_y'</span>) <span class="sc">+</span></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_x_reverse</span>() <span class="sc">+</span></span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(</span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>    <span class="at">legend.position =</span> <span class="st">'none'</span></span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(</span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>    <span class="at">title =</span> <span class="st">'Sampled Arrivals from Arrival Curve'</span>,</span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>    <span class="at">subtitle =</span> <span class="st">'Note: the y axis are on different scales due to the disproportionate amount of domestic flights'</span>,</span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>    <span class="at">x =</span> <span class="st">'Minutes Prior to Departure'</span>,</span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a>    <span class="at">y =</span> <span class="st">'Count'</span></span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 <div class="cell-output-display">
 <p><img src="index_files/figure-html/unnamed-chunk-6-1.png" class="img-fluid" width="672"></p>
 </div>
 </div>
+</section>
+<section id="modeling-the-day" class="level3">
+<h3 class="anchored" data-anchor-id="modeling-the-day">Modeling The Day</h3>
+<p>As we did in the previous post, we can take the time of arrival and derive what time of day to expect them. The following plot is the aggregate of all the arrivals based on one simulation.</p>
+<div class="cell">
+<details>
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co"># This is a common procedure I have followed before</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Get a list of values for each flight, </span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Unnest to create 1 row per passenger</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Subtract the minutes prior sampled from arrival curve, from the departure tiem</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>june_27_arrivals_long <span class="ot">&lt;-</span> june_27_kde_1 <span class="sc">|&gt;</span> </span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">unnest</span>(arrivals) <span class="sc">|&gt;</span> </span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">model_dttm =</span> dep_dttm <span class="sc">-</span> <span class="fu">minutes</span>(<span class="fu">round</span>(arrivals))) </span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>june_27_arrivals_long <span class="sc">|&gt;</span> </span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">head</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code># A tibble: 6 × 11
+  carrier origin dest  dep_dttm            flight_type       seats passengers
+  &lt;chr&gt;   &lt;chr&gt;  &lt;chr&gt; &lt;dttm&gt;              &lt;chr&gt;             &lt;dbl&gt;      &lt;dbl&gt;
+1 UA      EWR    MIA   2013-06-27 20:10:00 off_peak_domestic   149        127
+2 UA      EWR    MIA   2013-06-27 20:10:00 off_peak_domestic   149        127
+3 UA      EWR    MIA   2013-06-27 20:10:00 off_peak_domestic   149        127
+4 UA      EWR    MIA   2013-06-27 20:10:00 off_peak_domestic   149        127
+5 UA      EWR    MIA   2013-06-27 20:10:00 off_peak_domestic   149        127
+6 UA      EWR    MIA   2013-06-27 20:10:00 off_peak_domestic   149        127
+# ℹ 4 more variables: avg_num_bags &lt;dbl&gt;, .kde &lt;list&gt;, arrivals &lt;dbl&gt;,
+#   model_dttm &lt;dttm&gt;</code></pre>
+</div>
+<details>
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb10"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>june_27_arrivals_long <span class="sc">|&gt;</span> </span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">count</span>(origin, model_dttm) <span class="sc">|&gt;</span> </span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(<span class="fu">aes</span>(model_dttm, n, <span class="at">color =</span> origin)) <span class="sc">+</span> </span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_line</span>() <span class="sc">+</span> </span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">facet_wrap</span>(<span class="sc">~</span>origin, <span class="at">ncol =</span> <span class="dv">1</span>) <span class="sc">+</span></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(</span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">legend.position =</span> <span class="st">'none'</span></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(</span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>    <span class="at">title =</span> <span class="st">'Passenger Arrivals Throughout the Day'</span>,</span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a>    <span class="at">x =</span> <span class="st">'Time'</span>,</span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>    <span class="at">y =</span> <span class="st">'Count'</span></span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output-display">
+<p><img src="index_files/figure-html/unnamed-chunk-7-1.png" class="img-fluid" width="672"></p>
+</div>
+</div>
 <p>This is great, it is just one scenario thought.</p>
+</section>
 <section id="journey-to-10k" class="level3">
 <h3 class="anchored" data-anchor-id="journey-to-10k">Journey to 10k</h3>
-<p>I often see statements like “this analysis was based on 10,000 simulations,” but if your underlying function doesn’t accurately reflect the real world, no amount of simulations will compensate for that. The answer to how many simulations you need is, as always, “it depends.”</p>
+<p>I often encounter statements like “this analysis was based on 10,000 simulations,” but if your underlying function doesn’t accurately reflect the real world, no number of simulations will compensate for that. The answer to how many simulations you need is, as always, “it depends.”</p>
 <p>What is the goal or intended outcome of your model? If you’re focusing on extreme tail-end outcomes, 1,000 simulations might not be sufficient. Even 100,000 simulations might fall short if your distribution doesn’t accurately represent reality.</p>
-<p>A larger number of simulations becomes critical as we incorporate other metrics, like load and bag factors, into the model. Currently, we’re simulating a single metric, and 1,000 simulations might be reasonable for this. The arrival curve is a well-studied concept, and we have reasonable confidence that the distribution is accurately representing the real world now. If it wasn’t, we would want to look at expanding the range of the distribution.</p>
+<p>A larger number of simulations becomes critical as we incorporate other metrics, such as load and bag factors, into the model. Currently, we’re simulating a single metric, and 1,000 simulations might be reasonable for this. The arrival curve is a well-studied concept, and we have reasonable confidence that the distribution accurately represents the real world. If it didn’t, we would need to consider expanding the range of the distribution.</p>
 </section>
-<section id="replicating-the-sampling-over-10000-simulations" class="level3">
-<h3 class="anchored" data-anchor-id="replicating-the-sampling-over-10000-simulations">Replicating the sampling over 10,000 simulations</h3>
-<p>No magic number in 10,000, we just want more than 1.</p>
+<section id="replicating-the-sampling-over-100-simulations" class="level3">
+<h3 class="anchored" data-anchor-id="replicating-the-sampling-over-100-simulations">Replicating the sampling over 100 simulations</h3>
+<p>You will see why not 10,000, yet.</p>
 <section id="steps" class="level4">
 <h4 class="anchored" data-anchor-id="steps">Steps</h4>
 <ol type="1">
@@ -518,41 +479,41 @@ Make it Simple
 <div class="cell">
 <details>
 <summary>Code</summary>
-<div class="sourceCode cell-code" id="cb12"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>SIMS <span class="ot">&lt;-</span> <span class="dv">10</span></span>
-<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>june_27_kde_100 <span class="ot">&lt;-</span> june_27_base <span class="sc">|&gt;</span> </span>
-<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">sim_number =</span> <span class="fu">list</span>(<span class="dv">1</span><span class="sc">:</span>SIMS)) <span class="sc">|&gt;</span> </span>
-<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">unnest</span>(sim_number) <span class="sc">|&gt;</span> </span>
-<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
-<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">arrivals =</span> <span class="fu">map2</span>(<span class="at">.x =</span> .kde, <span class="at">.y =</span> passengers,  <span class="sc">~</span>ks<span class="sc">::</span><span class="fu">rkde</span>(.y, .x))</span>
-<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span> </span>
-<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">unnest</span>(arrivals)</span>
-<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a>june_27_kde_100 <span class="sc">|&gt;</span> </span>
-<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">model_dttm =</span> dep_dttm <span class="sc">-</span> <span class="fu">minutes</span>(<span class="fu">round</span>(arrivals))) <span class="sc">|&gt;</span> </span>
-<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">count</span>(origin, sim_number, model_dttm) <span class="sc">|&gt;</span> </span>
-<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(<span class="fu">aes</span>(model_dttm, n)) <span class="sc">+</span> </span>
-<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_point</span>(<span class="fu">aes</span>(<span class="at">group =</span> sim_number), <span class="at">alpha =</span> <span class="fl">0.5</span>, <span class="at">color =</span> <span class="st">'grey'</span>) <span class="sc">+</span> </span>
-<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_point</span>(</span>
-<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a>    <span class="fu">aes</span>(<span class="at">color =</span> origin),</span>
-<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a>    <span class="at">alpha =</span> <span class="fl">0.7</span> , </span>
-<span id="cb12-19"><a href="#cb12-19" aria-hidden="true" tabindex="-1"></a>    <span class="at">data =</span>  june_27_arrivals_long <span class="sc">|&gt;</span> <span class="fu">count</span>(origin, model_dttm)</span>
-<span id="cb12-20"><a href="#cb12-20" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">+</span></span>
-<span id="cb12-21"><a href="#cb12-21" aria-hidden="true" tabindex="-1"></a>  <span class="fu">facet_wrap</span>(<span class="sc">~</span>origin, <span class="at">ncol =</span> <span class="dv">1</span>) <span class="sc">+</span></span>
-<span id="cb12-22"><a href="#cb12-22" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(</span>
-<span id="cb12-23"><a href="#cb12-23" aria-hidden="true" tabindex="-1"></a>    <span class="at">legend.position =</span> <span class="st">'none'</span></span>
-<span id="cb12-24"><a href="#cb12-24" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
-<span id="cb12-25"><a href="#cb12-25" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(</span>
-<span id="cb12-26"><a href="#cb12-26" aria-hidden="true" tabindex="-1"></a>    <span class="at">title =</span> <span class="st">'Passenger Arrivals Throughout the Day'</span>,</span>
-<span id="cb12-27"><a href="#cb12-27" aria-hidden="true" tabindex="-1"></a>    <span class="at">x =</span> <span class="st">'Minutes Prior to Departure'</span>,</span>
-<span id="cb12-28"><a href="#cb12-28" aria-hidden="true" tabindex="-1"></a>    <span class="at">y =</span> <span class="st">'Count'</span></span>
-<span id="cb12-29"><a href="#cb12-29" aria-hidden="true" tabindex="-1"></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb11"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>SIMS <span class="ot">&lt;-</span> <span class="dv">100</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>june_27_kde_100 <span class="ot">&lt;-</span> june_27_base <span class="sc">|&gt;</span> </span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">sim_number =</span> <span class="fu">list</span>(<span class="dv">1</span><span class="sc">:</span>SIMS)) <span class="sc">|&gt;</span> </span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">unnest</span>(sim_number) <span class="sc">|&gt;</span> </span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">arrivals =</span> <span class="fu">map2</span>(<span class="at">.x =</span> .kde, <span class="at">.y =</span> passengers,  <span class="sc">~</span>ks<span class="sc">::</span><span class="fu">rkde</span>(.y, .x))</span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span> </span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">unnest</span>(arrivals)</span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a>june_27_kde_100 <span class="sc">|&gt;</span> </span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">model_dttm =</span> dep_dttm <span class="sc">-</span> <span class="fu">minutes</span>(<span class="fu">round</span>(arrivals))) <span class="sc">|&gt;</span> </span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">count</span>(origin, sim_number, model_dttm) <span class="sc">|&gt;</span> </span>
+<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(<span class="fu">aes</span>(model_dttm, n)) <span class="sc">+</span> </span>
+<span id="cb11-15"><a href="#cb11-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_point</span>(<span class="fu">aes</span>(<span class="at">group =</span> sim_number), <span class="at">alpha =</span> <span class="fl">0.5</span>, <span class="at">color =</span> <span class="st">'grey'</span>) <span class="sc">+</span> </span>
+<span id="cb11-16"><a href="#cb11-16" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_line</span>(</span>
+<span id="cb11-17"><a href="#cb11-17" aria-hidden="true" tabindex="-1"></a>    <span class="fu">aes</span>(<span class="at">color =</span> origin),</span>
+<span id="cb11-18"><a href="#cb11-18" aria-hidden="true" tabindex="-1"></a>    <span class="at">alpha =</span> <span class="fl">0.7</span> , </span>
+<span id="cb11-19"><a href="#cb11-19" aria-hidden="true" tabindex="-1"></a>    <span class="at">data =</span>  june_27_arrivals_long <span class="sc">|&gt;</span> <span class="fu">count</span>(origin, model_dttm)</span>
+<span id="cb11-20"><a href="#cb11-20" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">+</span></span>
+<span id="cb11-21"><a href="#cb11-21" aria-hidden="true" tabindex="-1"></a>  <span class="fu">facet_wrap</span>(<span class="sc">~</span>origin, <span class="at">ncol =</span> <span class="dv">1</span>) <span class="sc">+</span></span>
+<span id="cb11-22"><a href="#cb11-22" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(</span>
+<span id="cb11-23"><a href="#cb11-23" aria-hidden="true" tabindex="-1"></a>    <span class="at">legend.position =</span> <span class="st">'none'</span></span>
+<span id="cb11-24"><a href="#cb11-24" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
+<span id="cb11-25"><a href="#cb11-25" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(</span>
+<span id="cb11-26"><a href="#cb11-26" aria-hidden="true" tabindex="-1"></a>    <span class="at">title =</span> <span class="st">'Passenger Arrivals Throughout the Day'</span>,</span>
+<span id="cb11-27"><a href="#cb11-27" aria-hidden="true" tabindex="-1"></a>    <span class="at">x =</span> <span class="st">'Time'</span>,</span>
+<span id="cb11-28"><a href="#cb11-28" aria-hidden="true" tabindex="-1"></a>    <span class="at">y =</span> <span class="st">'Count'</span></span>
+<span id="cb11-29"><a href="#cb11-29" aria-hidden="true" tabindex="-1"></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 <div class="cell-output-display">
-<p><img src="index_files/figure-html/unnamed-chunk-7-1.png" class="img-fluid" width="672"></p>
+<p><img src="index_files/figure-html/unnamed-chunk-8-1.png" class="img-fluid" width="672"></p>
 </div>
 </div>
-<p>For each station, we have a single simulation plotted in color on top of all of the simulations. The overall curve does not change that much, as that would be determined more on simulating number of passengers and overall flight counts. However, adding a distribution to when passengers arrive introduces a significant amount of variance.</p>
+<p>For each station, we have the previous single simulation plotted in color on top of all of the simulations. The overall curve does not change that much, as that would be determined more on simulating number of passengers and overall flight counts. However, adding a distribution to when passengers arrive introduces a significant amount of variance not captured with the single interation.</p>
 <p>The order that the inputs would impact the overall passenger and bag profile is:</p>
 <ol type="1">
 <li><strong>Flight Schedule:</strong> Seat capacities and distribution of flights</li>
@@ -569,29 +530,254 @@ Make it Simple
 <div class="cell">
 <details>
 <summary>Code</summary>
-<div class="sourceCode cell-code" id="cb13"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="fu">paste</span>(<span class="st">"Number of rows:"</span>, <span class="fu">nrow</span>(june_27_kde_100))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb12"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="fu">paste</span>(<span class="st">"Number of rows:"</span>, <span class="fu">nrow</span>(june_27_kde_100))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 <div class="cell-output cell-output-stdout">
-<pre><code>[1] "Number of rows: 1161590"</code></pre>
+<pre><code>[1] "Number of rows: 11595600"</code></pre>
 </div>
 </div>
 <p>Using only 100 simulations created 11.6M rows. Yikes!</p>
-<p>Getting to 1,000 simulations seems daunting, much less 10,000. Using dataframes isn’t the only solution to manage this data. However, since they act as interfaces for handling related vectors, dataframes are by far the easiest tool for a typical analyst. For example, calculating the time of day a passenger arrives by subtracting one column from another datetime column is so easy with dataframes an AI bot could do it.</p>
-<p>The tradeoff for this convenience is the memory and data capacity it consumes. Imagine running a web application with adjustable sliders for flight counts at a station to predict wait times at a checkpoint. If you’re using R dataframes and dplyr, you’d better have plenty of RAM—and a lunch break planned for after you interact with the application.</p>
+<p>Getting to 1,000 simulations seems daunting, let alone 10,000. Using dataframes aren’t the only solution for managing this data, they are by far the easiest tool for a typical analyst due to their ability to handle related vectors seamlessly. For example, calculating the time of day a passenger arrives by subtracting one column from another datetime column is so straightforward with dataframes that even an AI bot could do it.</p>
+<p>The tradeoff for this convenience is the memory and data capacity it consumes. Imagine running a web application with adjustable sliders for flight counts at a station to predict wait times at a checkpoint. If you’re using R dataframes and <code>dplyr</code>, you’d better have plenty of RAM—and a lunch break planned for after you interact with the application.</p>
 </section>
-<section id="do-i-have-an-answer" class="level3">
-<h3 class="anchored" data-anchor-id="do-i-have-an-answer">Do I have an answer?</h3>
-<p>Not yet, but I’m gonna blog my way through it.</p>
-<section id="possible-solutions" class="level4">
-<h4 class="anchored" data-anchor-id="possible-solutions">Possible solutions</h4>
-<ol type="1">
-<li>DuckDB</li>
-<li>Writing low level operations in something like Rust with <code>extendr</code></li>
-<li><code>DataTable</code>, <code>Polars</code>, or other optimized dataframe libraries</li>
-</ol>
+<section id="duckdb" class="level3">
+<h3 class="anchored" data-anchor-id="duckdb">DuckDB</h3>
+<p>DuckDB is a technology I have recently been getting into. I am continuously impressed the deeper I dive into it. At the time of writing this, they recently released <a href="https://duckdb.org/2024/06/03/announcing-duckdb-100.html">version 1.0</a>. I’m really excited for its future and all the potential use cases. Other projects like <a href="https://mdsinabox.com/">Modern Data Stack In a Box</a> have a full infrastructure of models and visualizations powered by DuckDB (along with dbt and evidence).</p>
+<p>I’ve yet to write about DuckDB, and the scope of this isn’t necessarily to teach about it, but we will use it as a tool. In a high level overview, it operates as an in-process analytical database management system. It is analytical due to its columnar oriented structure and optimized to analyze data.</p>
+</section>
+<section id="dataframes" class="level3">
+<h3 class="anchored" data-anchor-id="dataframes">Dataframes</h3>
+<p>I love R dataframes (okay I really love tibbles), they are quick and easy to get started analyzing data. The <code>{tidyverse}</code> is a great way to filter, aggregate, and visualize data. As the data increases, there are dimminishing returns on the speed and ease of use with the amount of memory the dataframe object takes up causes everything to slow down. If you are working in Rstudio, you might have seen the bomb 💣 causing you to have to restart your entire session.</p>
+<p>What size and tradeoff to leverage dataframes or not is dependent on your use case and hardware. I’m working on a laptop with 16gb of memory, and a couple of GB of data will bog my system down. I’m going to leverage DuckDB to work with dataframes that I otherwise could not in a typical R session on my machine.</p>
+</section>
+<section id="duckdb-setup" class="level3">
+<h3 class="anchored" data-anchor-id="duckdb-setup">DuckDB Setup</h3>
+<p>We could use DuckDB in-memory, and not need to utilize any path information, but to work with out-of-memory data we will need to create a <code>.duckdb</code> file. The following code will just check if the directory exists, if not create it and connect.</p>
+<p>This will create 2 files:</p>
+<ul>
+<li><code>sim_dataset.duckdb</code></li>
+<li><code>sim_dataset.duckdb.wal</code></li>
+</ul>
+<p>The <code>sim_dataset.duckdb</code> file will be the file used for the database connection. The <code>sim_dataset.duckdb.wal</code> stands for write-ahead log (WAL). THE WAL file is used to log changes before executed in the main database file, and helps with recovering from crashes and maintaining transactions. This use case won’t rely too much on it, as we will create a temporary table, but I have not seen anywhere that it would be safe to delete it. If it is anything like [SQLite] (https://stackoverflow.com/questions/20969996/is-it-safe-to-delete-sqlites-wal-file), I would avoid messing with it.</p>
+<div class="cell">
+<details open="">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb14"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="co"># setup</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(duckdb)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stderr">
+<pre><code>Loading required package: DBI</code></pre>
+</div>
+<details open="">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb16"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>current_directory <span class="ot">&lt;-</span> <span class="fu">getwd</span>()</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Define the name of the new directory</span></span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>new_directory <span class="ot">&lt;-</span> <span class="st">"posts/2024-06-02-flight-data-cont"</span></span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>new_directory <span class="ot">&lt;-</span> <span class="st">'tmp'</span></span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Combine the current working directory with the new directory name</span></span>
+<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a>new_directory_path <span class="ot">&lt;-</span> <span class="fu">file.path</span>(current_directory, new_directory)</span>
+<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-10"><a href="#cb16-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Check if the directory exists</span></span>
+<span id="cb16-11"><a href="#cb16-11" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> (<span class="sc">!</span><span class="fu">dir.exists</span>(new_directory_path)) {</span>
+<span id="cb16-12"><a href="#cb16-12" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Create the new directory if it does not exist</span></span>
+<span id="cb16-13"><a href="#cb16-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">dir.create</span>(new_directory_path)</span>
+<span id="cb16-14"><a href="#cb16-14" aria-hidden="true" tabindex="-1"></a>  <span class="fu">print</span>(<span class="fu">paste</span>(<span class="st">"New directory created at:"</span>, new_directory_path))</span>
+<span id="cb16-15"><a href="#cb16-15" aria-hidden="true" tabindex="-1"></a>} <span class="cf">else</span> {</span>
+<span id="cb16-16"><a href="#cb16-16" aria-hidden="true" tabindex="-1"></a>  <span class="fu">print</span>(<span class="fu">paste</span>(<span class="st">"Directory already exists at:"</span>, new_directory_path))</span>
+<span id="cb16-17"><a href="#cb16-17" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] "Directory already exists at: /Users/ryan/git-repos/personal-site/posts/2024-06-02-flight-data-cont/tmp"</code></pre>
+</div>
+<details open="">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb18"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="co">#con &lt;- dbConnect(duckdb::duckdb(), "posts/2024-06-02-flight-data-cont/sim_dataset.duckdb")</span></span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>con <span class="ot">&lt;-</span> <span class="fu">dbConnect</span>(duckdb<span class="sc">::</span><span class="fu">duckdb</span>(), <span class="st">"tmp/sim_dataset_tmp.duckdb"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</div>
+</section>
+<section id="simulate-data" class="level3">
+<h3 class="anchored" data-anchor-id="simulate-data">Simulate Data</h3>
+<p>With our DuckDB database file set up, we can now run simulations. The following code chunks the operations of the simulation and writes/appends the results to the table in DuckDB. We continue to leverage R dataframes and use <code>purrr::map2()</code> for sampling from the KDE. To avoid memory constraints that could potentially crash the system, we ensure the R dataframe does not become too large.</p>
+</section>
+<section id="duckdb-table---arrivals" class="level3">
+<h3 class="anchored" data-anchor-id="duckdb-table---arrivals">DuckDB Table - Arrivals</h3>
+<p>The table now has each flight, simulated 1,000 times. Our base dataframe was 995 flights.</p>
+<div class="cell">
+<details open="">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb19"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="fu">tbl</span>(con, <span class="st">"arrivals"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code># Source:   table&lt;arrivals&gt; [?? x 8]
+# Database: DuckDB v0.10.2 [root@Darwin 23.4.0:R 4.3.2//Users/ryan/git-repos/personal-site/posts/2024-06-02-flight-data-cont/tmp/sim_dataset_tmp.duckdb]
+   carrier origin dest  dep_dttm            passengers avg_num_bags  sims
+   &lt;chr&gt;   &lt;chr&gt;  &lt;chr&gt; &lt;dttm&gt;                   &lt;dbl&gt;        &lt;dbl&gt; &lt;int&gt;
+ 1 UA      EWR    MIA   2013-06-28 00:10:00        127         0.87     1
+ 2 UA      EWR    MIA   2013-06-28 00:10:00        127         0.87     2
+ 3 UA      EWR    MIA   2013-06-28 00:10:00        127         0.87     3
+ 4 UA      EWR    MIA   2013-06-28 00:10:00        127         0.87     4
+ 5 UA      EWR    MIA   2013-06-28 00:10:00        127         0.87     5
+ 6 UA      EWR    MIA   2013-06-28 00:10:00        127         0.87     6
+ 7 UA      EWR    MIA   2013-06-28 00:10:00        127         0.87     7
+ 8 UA      EWR    MIA   2013-06-28 00:10:00        127         0.87     8
+ 9 UA      EWR    MIA   2013-06-28 00:10:00        127         0.87     9
+10 UA      EWR    MIA   2013-06-28 00:10:00        127         0.87    10
+# ℹ more rows
+# ℹ 1 more variable: arrivals &lt;list&gt;</code></pre>
+</div>
+<details open="">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb21"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="fu">tbl</span>(con, <span class="st">"arrivals"</span>) <span class="sc">|&gt;</span> </span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">count</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code># Source:   SQL [1 x 1]
+# Database: DuckDB v0.10.2 [root@Darwin 23.4.0:R 4.3.2//Users/ryan/git-repos/personal-site/posts/2024-06-02-flight-data-cont/tmp/sim_dataset_tmp.duckdb]
+        n
+    &lt;dbl&gt;
+1 9950000</code></pre>
+</div>
+</div>
+</section>
+<section id="lets-make-it-loooooong" class="level3">
+<h3 class="anchored" data-anchor-id="lets-make-it-loooooong">Let’s make it loooooong</h3>
+<p>The first output shows the row count when we <code>unnest()</code> the arrivals column, transforming the data to represent one row per passenger instead of per flight. This results in a significantly larger dataset, far beyond what I can handle in-memory on my machine.</p>
+<p>Both table counts are printed to show that we are able to transform and aggregate the data <strong>OUT-OF-MEMORY</strong>. The potential DuckDB unlocks is absolutely insane. When I got started in 2019, I had a MacBook Air that had 8 GB of RAM (I still only have 16 GB 🙃), which limited the amount of data I could process. With DuckDB, we can leverage additional storage and CPUs to handle larger datasets efficiently.</p>
+<div class="cell">
+<details open="">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb23"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="fu">tbl</span>(con, <span class="st">"arrivals"</span>) <span class="sc">|&gt;</span> </span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">arrivals =</span> <span class="fu">sql</span>(<span class="st">"unnest(arrivals)"</span>)) <span class="sc">|&gt;</span> </span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">count</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code># Source:   SQL [1 x 1]
+# Database: DuckDB v0.10.2 [root@Darwin 23.4.0:R 4.3.2//Users/ryan/git-repos/personal-site/posts/2024-06-02-flight-data-cont/tmp/sim_dataset_tmp.duckdb]
+           n
+       &lt;dbl&gt;
+1 1159560000</code></pre>
+</div>
+<details open="">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb25"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="fu">tbl</span>(con, <span class="st">"arrivals"</span>) <span class="sc">|&gt;</span> </span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">arrivals =</span> <span class="fu">sql</span>(<span class="st">"unnest(arrivals)"</span>),</span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">model_dttm =</span> dep_dttm <span class="sc">-</span> <span class="fu">minutes</span>(arrivals)</span>
+<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">|&gt;</span> </span>
+<span id="cb25-6"><a href="#cb25-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(origin, model_dttm, sims) <span class="sc">|&gt;</span> </span>
+<span id="cb25-7"><a href="#cb25-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(</span>
+<span id="cb25-8"><a href="#cb25-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">n =</span> <span class="fu">n</span>(),</span>
+<span id="cb25-9"><a href="#cb25-9" aria-hidden="true" tabindex="-1"></a>    <span class="at">.groups =</span> <span class="st">'drop'</span></span>
+<span id="cb25-10"><a href="#cb25-10" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span> </span>
+<span id="cb25-11"><a href="#cb25-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">count</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code># Source:   SQL [1 x 1]
+# Database: DuckDB v0.10.2 [root@Darwin 23.4.0:R 4.3.2//Users/ryan/git-repos/personal-site/posts/2024-06-02-flight-data-cont/tmp/sim_dataset_tmp.duckdb]
+         n
+     &lt;dbl&gt;
+1 34869398</code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="results" class="level1">
+<h1>Results</h1>
+<p>With the simulations completed and the ability to transform and aggregate the data out-of-memory, let’s examine the results. We’ve been analyzing the data on a minute-by-minute basis, but for the final output, we will group it into 5-minute intervals. This approach helps convey variance in a simpler and more intuitive manner.</p>
+<p>The plot displays the average number of passengers, along with the minimum and maximum values from the simulations. The colored line represents the average number of passengers expected to arrive in 5-minute increments. The spread of the distribution illustrates the variance in the simulation.</p>
+<p>Examining the peaks for each station, we observe that between 200 to 400 passengers could arrive within any given 5-minute interval during that time. The uncertainty introduced by the arrival curve can significantly impact airport operations.</p>
+<div class="cell">
+<details open="">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb27"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a>df_arrivals <span class="ot">&lt;-</span> <span class="fu">tbl</span>(con, <span class="st">"arrivals"</span>) <span class="sc">|&gt;</span> </span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">arrivals =</span> <span class="fu">sql</span>(<span class="st">"unnest(arrivals)"</span>),</span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">model_dttm =</span> dep_dttm <span class="sc">-</span> <span class="fu">minutes</span>(arrivals),</span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">model_dttm =</span> model_dttm <span class="sc">-</span> <span class="fu">minutes</span>(<span class="fu">minute</span>(model_dttm) <span class="sc">%%</span> <span class="dv">5</span>)</span>
+<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">|&gt;</span> </span>
+<span id="cb27-7"><a href="#cb27-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">count</span>(origin, model_dttm, sims) <span class="sc">|&gt;</span> </span>
+<span id="cb27-8"><a href="#cb27-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">collect</span>()</span>
+<span id="cb27-9"><a href="#cb27-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-10"><a href="#cb27-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-11"><a href="#cb27-11" aria-hidden="true" tabindex="-1"></a>df_arrivals <span class="sc">|&gt;</span> </span>
+<span id="cb27-12"><a href="#cb27-12" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(origin, model_dttm) <span class="sc">|&gt;</span> </span>
+<span id="cb27-13"><a href="#cb27-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
+<span id="cb27-14"><a href="#cb27-14" aria-hidden="true" tabindex="-1"></a>    <span class="fu">across</span>(n, <span class="fu">list</span>(<span class="at">mean =</span> mean, <span class="at">min=</span>min, <span class="at">max=</span>max))</span>
+<span id="cb27-15"><a href="#cb27-15" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span> </span>
+<span id="cb27-16"><a href="#cb27-16" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(<span class="fu">aes</span>(model_dttm, n)) <span class="sc">+</span></span>
+<span id="cb27-17"><a href="#cb27-17" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_ribbon</span>(<span class="fu">aes</span>(<span class="at">ymin =</span> n_min, <span class="at">ymax=</span>n_max), <span class="at">fill =</span> <span class="st">'grey70'</span>) <span class="sc">+</span> </span>
+<span id="cb27-18"><a href="#cb27-18" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_line</span>(<span class="fu">aes</span>(<span class="at">y =</span> n_mean, <span class="at">color =</span> origin)) <span class="sc">+</span> </span>
+<span id="cb27-19"><a href="#cb27-19" aria-hidden="true" tabindex="-1"></a>  <span class="fu">facet_wrap</span>(<span class="sc">~</span>origin, <span class="at">ncol =</span> <span class="dv">1</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output-display">
+<p><img src="index_files/figure-html/unnamed-chunk-14-1.png" class="img-fluid" width="672"></p>
+</div>
+</div>
+<section id="whats-next" class="level3">
+<h3 class="anchored" data-anchor-id="whats-next">What’s Next?</h3>
+<p>We can use the output of the arrivals to pass through Discrete Event Simulation software, such as <a href="https://r-simmer.org/">simmer</a> or <a href="https://simpy.readthedocs.io/en/latest/">SimPy</a>. You can probably guess which route I will be utilizing.</p>
+<p>There is also room for further optimization of the passenger arrivals data. As mentioned earlier, dataframes aren’t necessarily the optimal approach. Columns like Carrier, Origin, Destination, and Departure Time are all repeated. The next step could involve using a NoSQL or document storage approach to handle these redundancies more efficiently.</p>
+<p>The ultimate goal of this workflow is to power a Shiny app focused on a single station. The arrivals generated using this method would initialize relatively quickly, and with DuckDB, it should be sufficient to filter and collect the necessary data efficiently.</p>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center" data-bs-toggle="collapse" data-bs-target=".callout-1-contents" aria-controls="callout-1" aria-expanded="false" aria-label="Toggle callout">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Expand for Session Info
+</div>
+<div class="callout-btn-toggle d-inline-block border-0 py-1 ps-1 pe-0 float-end"><i class="callout-toggle"></i></div>
+</div>
+<div id="callout-1" class="callout-1-contents callout-collapse collapse">
+<div class="callout-body-container callout-body">
+<div class="cell">
+<div class="cell-output cell-output-stdout">
+<pre><code>─ Session info ───────────────────────────────────────────────────────────────
+ setting  value
+ version  R version 4.3.2 (2023-10-31)
+ os       macOS Sonoma 14.4
+ system   aarch64, darwin20
+ ui       X11
+ language (EN)
+ collate  en_US.UTF-8
+ ctype    en_US.UTF-8
+ tz       America/Denver
+ date     2024-06-09
+ pandoc   3.1.1 @ /Applications/RStudio.app/Contents/Resources/app/quarto/bin/tools/ (via rmarkdown)
+ quarto   1.3.450 @ /usr/local/bin/quarto
+
+─ Packages ───────────────────────────────────────────────────────────────────
+ package         * version date (UTC) lib source
+ DBI             * 1.2.2   2024-02-16 [1] CRAN (R 4.3.1)
+ dplyr           * 1.1.4   2023-11-17 [1] CRAN (R 4.3.1)
+ duckdb          * 0.10.2  2024-05-01 [1] CRAN (R 4.3.1)
+ flightanalytics * 0.1.0   2024-06-05 [1] Github (rplain1/flightanalytics@2ecda88)
+ forcats         * 1.0.0   2023-01-29 [1] CRAN (R 4.3.0)
+ ggplot2         * 3.4.4   2023-10-12 [1] CRAN (R 4.3.1)
+ ks              * 1.14.2  2024-01-15 [1] CRAN (R 4.3.1)
+ lubridate       * 1.9.3   2023-09-27 [1] CRAN (R 4.3.1)
+ nycflights13    * 1.0.2   2021-04-12 [1] CRAN (R 4.3.0)
+ purrr           * 1.0.2   2023-08-10 [1] CRAN (R 4.3.0)
+ readr           * 2.1.4   2023-02-10 [1] CRAN (R 4.3.0)
+ sessioninfo     * 1.2.2   2021-12-06 [1] CRAN (R 4.3.0)
+ stringr         * 1.5.0   2022-12-02 [1] CRAN (R 4.3.0)
+ tibble          * 3.2.1   2023-03-20 [1] CRAN (R 4.3.0)
+ tidyr           * 1.3.0   2023-01-24 [1] CRAN (R 4.3.0)
+ tidyverse       * 2.0.0   2023-02-22 [1] CRAN (R 4.3.0)
+
+ [1] /Library/Frameworks/R.framework/Versions/4.3-arm64/Resources/library
+
+──────────────────────────────────────────────────────────────────────────────</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
 
 
-</section>
 </section>
 </section>
 
