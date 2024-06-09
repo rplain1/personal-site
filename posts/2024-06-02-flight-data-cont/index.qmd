@@ -1,7 +1,7 @@
 ---
 title: "Arrival Curve Sampling"
 author: "Ryan Plain"
-date: "2024-06-02"
+date: "2024-06-07"
 categories: [Flights, R]
 description: "Adding variance using the KDE of each arrival curve"
 draft: false
@@ -30,14 +30,13 @@ library(nycflights13)
 library(flightanalytics) # hey look thats new
 library(ks) # this is new too
 
-
-june27_flights <- flights |> 
-  mutate(dep_dttm = time_hour + minutes(minute)) |> 
-  filter(day == 27 , month == 6)
-
+pax_bag_data <- get_pgds_passenger_bag_factors()
 
 arrival_curve <- get_pgds_arrival_curve() |> 
-  clean_arrival_curve()
+  clean_arrival_curve() |> 
+  create_arrival_curve_kde()
+
+flight_schedule <- clean_and_join_nycflights()
 
 
 pax_bag_data <- get_pgds_passenger_bag_factors()
@@ -55,7 +54,8 @@ Here's a summary of the arrival curves from the [previous post](https://www.ryan
 
 set.seed(0527)
 
-arrival_samples <- arrival_curve |> 
+arrival_samples <- get_pgds_arrival_curve() |> 
+  clean_arrival_curve() |> 
   group_by(name) |> 
   nest() |> 
   ungroup() |> 
@@ -68,9 +68,6 @@ arrival_samples <- arrival_curve |>
     density_y = map(d, "y"),
     dens = tibble(dens_x = map(d, "x"), dens_y = map(d, "y"))
   ) |> 
-  ungroup() 
-
-arrival_kde <- arrival_samples |> 
   select(name, starts_with('density')) |> 
   unnest(c(density_x, density_y)) |> 
   filter(density_x > 0) |> 
@@ -79,7 +76,7 @@ arrival_kde <- arrival_samples |>
   select(name, minutes_prior = density_x, perc = y) |> 
   ungroup()
 
-arrival_kde |> 
+arrival_samples |> 
   ggplot(aes(minutes_prior, perc, color = name)) +
   geom_line(linewidth = 2) + 
   labs(
@@ -99,16 +96,7 @@ arrival_kde |>
 
 ### What's a KDE?
 
-One thing we touched on last time was using the Kernel Density Estimate (KDE). If you have every used `plot(density(x))`, you have used a KDE. You can learn more about it [here](https://en.wikipedia.org/wiki/Kernel_density_estimation), but to summarize it is a smoothing function to estimate the probability density function of a random variable.
-
-::: {.callout-note collapse="true"}
-## Make it Simple
-
-I failed Algebra I multiple times, and I still have trauma from Greek letters in grad school. I was someone who learned math and statistics more effectively through programming. It's not for everyone (the way math is traditionally taught also isn't for everyone), but I found everything easier to learn inside a for loop. Colors help too. 
-
-I'll link to Wikipedia and other sources to detail the math used, because that is important too. Just learn however is best for you, and it doesn't have to be how everyone else does it. If I add context it will be to make it as simple to grasp as possible, and I will never use the Greek alphabet.  
-:::
-
+One thing we touched on last time was using the KDE (Kernel Density Estimate). If you have ever used `plot(density(x))`, the you have effectively used a KDE. You can learn more about it [here](https://en.wikipedia.org/wiki/Kernel_density_estimation), but to summarize it is a smoothing function to estimate the probability density function of a random variable.
 
 ### A quick example
 
@@ -134,59 +122,25 @@ ggplot(data, aes(x = value)) +
 
 
 
-### Create Base Flight Schedule
+### Sampling from distribution
 
-At the moment, this code is some `dplyr` mess that should be wrapped into a function to clean the flight schedule into a usable format. The main takeaway is that we have a flight schedule with the estimated passengers and bags for each flight.
+Previously, we applied a flat factor across the 10-minute arrival curve. Now, we're adding some variance to enhance our modeling.
+
+Each flight now has one of the three different types of arrival curves associated with it. With the number of expected passengers, we want to have random values for each passenger representing how many minutes prior to departure they arrive. To implement this, we're utilizing `purrr` to apply the function `ks::rkde` to each row, adjusting for the number of passengers dynamically.
+
+This approach enables us to introduce variability into our arrival curve modeling, enhancing the simulation and better capturing real-world scenarios.
 
 ```{r}
 
 
-airports <- airports |> 
-  mutate(domestic = str_detect(tzone, 'America'),
-         domestic = replace_na(domestic, FALSE))
-
-
-
- arrival_curve_kde <- arrival_curve |> 
-    group_by(name) |> 
-    nest() |> 
-    ungroup() |> 
-    # sample 1000 values from 10 minute increments
-    mutate(
-      samples = map(.x = data, ~sample(.x$minutes_prior, 1000, replace = TRUE, prob = .x$value))
-    ) |> 
-   # apply KDE function, here {ks} is used which was different than the 
-   # last post that used `d = map(samples, ~density(.x))`,
-    mutate(
-      .kde = map(.x = samples, ~ks::kde(.x)),
-    ) |> 
-    mutate(
-      peak = name == 'peak_domestic_8am',
-      domestic = !str_detect(name, 'international')
-      )
-
-
-
-june_27_base <- june27_flights |> 
+june_27_base <- flight_schedule |>
+  filter(month == 6, day == 27) |> 
   # join all the tables
-  left_join(planes |> select(tailnum, seats), by = c('tailnum')) |> 
   left_join(pax_bag_data, by = c('carrier')) |> 
-  left_join(airports, by =c('dest' = 'faa')) |> 
-  # Some stations did not have a timezone, default to non-domestic
   mutate(
-    domestic = replace_na(domestic, FALSE),
-    join_arr_col = case_when(
-      domestic == FALSE ~ 'international',
-      sched_dep_time <= 800 ~ 'peak_domestic_8am',
-      TRUE ~ 'off_peak_domestic'
-    ),
-    # use median values for missing airline data
+  # use median values for missing airline data
     across(c(contains('factor'), avg_num_bags ), \(x) replace_na(x, median(x, na.rm = TRUE)))
   ) |> 
-  # Fill in the NA seat values for small amount of missing data in planes table
-  group_by(carrier) |> 
-  mutate(seats = replace_na(seats, median(seats, na.rm = TRUE))) |> 
-  ungroup() |> 
   # Apply factors to seats to get passengers and bags
   mutate(
     passengers = round(seats * load_factor),
@@ -194,26 +148,24 @@ june_27_base <- june27_flights |>
     num_of_bags = round(passengers * avg_num_bags)
   ) |> 
   left_join(
-    arrival_curve_kde,
-      by = c('join_arr_col' = 'name'),
+    arrival_curve,
+    by = c('flight_type' = 'name'),
     suffix = c('_base', '_arr_curve')
-    ) |> 
-    select(carrier, origin, dest, dep_dttm, passengers:num_of_bags, arr_curve = join_arr_col, .kde)
+  ) |> 
+  select(carrier, origin, dest, dep_dttm, flight_type, seats, passengers, avg_num_bags, .kde)
+
 
 june_27_base |> 
   head()
 ```
 
+### Distributions 
 
-# Sampling from distribution
+Examining the output of a single simulation, we observe that the distribution aligns with our expectations based on the KDE. Due to the fewer number of international flights in the schedule, the histogram appears less smooth compared to that of domestic flights. Which is exactly why we want to replicate this. 
 
-Previously, we applied a flat factor across the 10-minute arrival curve. Now, we're adding some variance to enhance our modeling.
-
-Each flight now has one of the three different types of arrival curves associated with it. With the number of expected passengers, we want to have a value of how many minutes prior to departure they arrive. To implement this, we're utilizing `purrr` to apply the function `ks::rkde` to each row, adjusting for the number of passengers dynamically.
-
-This approach enables us to introduce variability into our arrival curve modeling, enhancing the fidelity of our simulations and better capturing real-world scenarios.
 
 ```{r}
+
 set.seed(1234)
 # Generate random arrivals from the KDE for every passenger expected
 june_27_kde_1 <- june_27_base |> 
@@ -222,13 +174,10 @@ june_27_kde_1 <- june_27_base |>
   ) 
 
 june_27_kde_1 |> 
-  head()
-
-june_27_kde_1 |> 
   unnest(arrivals) |> 
-  ggplot(aes(arrivals, fill = arr_curve)) + 
+  ggplot(aes(arrivals, fill = flight_type)) + 
   geom_histogram(bins=50) + 
-  facet_wrap(~arr_curve, ncol = 1, scales = 'free_y') +
+  facet_wrap(~flight_type, ncol = 1, scales = 'free_y') +
   scale_x_reverse() +
   theme(
     legend.position = 'none'
@@ -241,12 +190,42 @@ june_27_kde_1 |>
   )
 ```
 
-It matches the arrival curves from the plot above! 
+### One Flight, Several Distirbutions
 
-Taking those arrivals, we can generate an timestamp when each passenger arrives. The plot below is the aggregate number of passengers arriving by minute over the course of the day. 
+n this example, we examine a single flight and draw arrival times from the arrival curve three independent times. Each resulting distribution differs, and when we aggregate the data across all flights and simulations throughout the day, it significantly impacts the number of passengers arriving at any given time.
+
+```{r}
+set.seed(1234)
+# Generate random arrivals from the KDE for every passenger expected
+
+june_27_kde_1 |> 
+  filter(carrier == 'UA', origin == 'EWR', dest == 'MIA', hour(dep_dttm) == 20) |> 
+  mutate(rn = list(paste("sim",1:3))) |> 
+  unnest(rn) |> 
+  mutate(arrivals = map2(.x = .kde, .y = passengers,  ~ks::rkde(.y, .x))) |> 
+  unnest(arrivals) |> 
+  ggplot(aes(arrivals, fill = rn)) + 
+  geom_histogram(bins=50) + 
+  facet_wrap(~rn, ncol = 1, scales = 'free_y') +
+  scale_x_reverse() +
+  theme(
+    legend.position = 'none'
+  ) +
+  labs(
+    title = 'Sampled Arrivals from Arrival Curve',
+    subtitle = 'Note: the y axis are on different scales due to the disproportionate amount of domestic flights',
+    x = 'Minutes Prior to Departure',
+    y = 'Count'
+  )
+```
+
+### Modeling The Day
+
+As we did in the previous post, we can take the time of arrival and derive what time of day to expect them. The following plot is the aggregate of all the arrivals based on one simulation. 
 
 
 ```{r}
+#| eval: true
 
 # This is a common procedure I have followed before
 # Get a list of values for each flight, 
@@ -269,7 +248,7 @@ june_27_arrivals_long |>
   ) +
   labs(
     title = 'Passenger Arrivals Throughout the Day',
-    x = 'Minutes Prior to Departure',
+    x = 'Time',
     y = 'Count'
   )
 
@@ -279,15 +258,15 @@ This is great, it is just one scenario thought.
 
 ### Journey to 10k
 
-I often see statements like "this analysis was based on 10,000 simulations," but if your underlying function doesn't accurately reflect the real world, no amount of simulations will compensate for that. The answer to how many simulations you need is, as always, "it depends."
+I often encounter statements like "this analysis was based on 10,000 simulations," but if your underlying function doesn't accurately reflect the real world, no number of simulations will compensate for that. The answer to how many simulations you need is, as always, "it depends."
 
 What is the goal or intended outcome of your model? If you're focusing on extreme tail-end outcomes, 1,000 simulations might not be sufficient. Even 100,000 simulations might fall short if your distribution doesn't accurately represent reality.
 
-A larger number of simulations becomes critical as we incorporate other metrics, like load and bag factors, into the model. Currently, we're simulating a single metric, and 1,000 simulations might be reasonable for this. The arrival curve is a well-studied concept, and we have reasonable confidence that the distribution is accurately representing the real world now. If it wasn't, we would want to look at expanding the range of the distribution.  
+A larger number of simulations becomes critical as we incorporate other metrics, such as load and bag factors, into the model. Currently, we're simulating a single metric, and 1,000 simulations might be reasonable for this. The arrival curve is a well-studied concept, and we have reasonable confidence that the distribution accurately represents the real world. If it didn’t, we would need to consider expanding the range of the distribution.
 
-### Replicating the sampling over 10,000 simulations
+### Replicating the sampling over 100 simulations 
 
-No magic number in 10,000, we just want more than 1. 
+You will see why not 10,000, yet. 
 
 #### Steps
 
@@ -298,8 +277,9 @@ No magic number in 10,000, we just want more than 1.
 
 
 ```{r}
+#| eval: true
 
-SIMS <- 10
+SIMS <- 100
 
 june_27_kde_100 <- june_27_base |> 
   mutate(sim_number = list(1:SIMS)) |> 
@@ -314,7 +294,7 @@ june_27_kde_100 |>
   count(origin, sim_number, model_dttm) |> 
   ggplot(aes(model_dttm, n)) + 
   geom_point(aes(group = sim_number), alpha = 0.5, color = 'grey') + 
-  geom_point(
+  geom_line(
     aes(color = origin),
     alpha = 0.7 , 
     data =  june_27_arrivals_long |> count(origin, model_dttm)
@@ -325,14 +305,14 @@ june_27_kde_100 |>
   ) +
   labs(
     title = 'Passenger Arrivals Throughout the Day',
-    x = 'Minutes Prior to Departure',
+    x = 'Time',
     y = 'Count'
   )
 
 
 ```
 
-For each station, we have a single simulation plotted in color on top of all of the simulations. The overall curve does not change that much, as that would be determined more on simulating number of passengers and overall flight counts. However, adding a distribution to when passengers arrive introduces a significant amount of variance.
+For each station, we have the previous single simulation plotted in color on top of all of the simulations. The overall curve does not change that much, as that would be determined more on simulating number of passengers and overall flight counts. However, adding a distribution to when passengers arrive introduces a significant amount of variance not captured with the single interation.
 
 The order that the inputs would impact the overall passenger and bag profile is: 
 
@@ -349,6 +329,7 @@ While the flight distribution has the biggest impact, it also changes infrequent
 But wait...
 
 ```{r}
+#| eval: true
 
 paste("Number of rows:", nrow(june_27_kde_100))
 
@@ -356,28 +337,204 @@ paste("Number of rows:", nrow(june_27_kde_100))
 
 Using only 100 simulations created 11.6M rows. Yikes! 
 
-Getting to 1,000 simulations seems daunting, much less 10,000. Using dataframes isn't the only solution to manage this data. However, since they act as interfaces for handling related vectors, dataframes are by far the easiest tool for a typical analyst. For example, calculating the time of day a passenger arrives by subtracting one column from another datetime column is so easy with dataframes an AI bot could do it.
+Getting to 1,000 simulations seems daunting, let alone 10,000. Using dataframes aren't the only solution for managing this data, they are by far the easiest tool for a typical analyst due to their ability to handle related vectors seamlessly. For example, calculating the time of day a passenger arrives by subtracting one column from another datetime column is so straightforward with dataframes that even an AI bot could do it.
 
-The tradeoff for this convenience is the memory and data capacity it consumes. Imagine running a web application with adjustable sliders for flight counts at a station to predict wait times at a checkpoint. If you're using R dataframes and dplyr, you'd better have plenty of RAM—and a lunch break planned for after you interact with the application.
+The tradeoff for this convenience is the memory and data capacity it consumes. Imagine running a web application with adjustable sliders for flight counts at a station to predict wait times at a checkpoint. If you're using R dataframes and `dplyr`, you'd better have plenty of RAM—and a lunch break planned for after you interact with the application.
 
-### Do I have an answer? 
+### DuckDB
 
-Not yet, but I'm gonna blog my way through it. 
+DuckDB is a technology I have recently been getting into. I am continuously impressed the deeper I dive into it. At the time of writing this, they recently released [version 1.0](https://duckdb.org/2024/06/03/announcing-duckdb-100.html). I'm really excited for its future and all the potential use cases. Other projects like [Modern Data Stack In a Box](https://mdsinabox.com/) have a full infrastructure of models and visualizations powered by DuckDB (along with dbt and evidence).
 
-#### Possible solutions
+I've yet to write about DuckDB, and the scope of this isn't necessarily to teach about it, but we will use it as a tool. In a high level overview, it operates as an in-process analytical database management system. It is analytical due to its columnar oriented structure and optimized to analyze data. 
 
-1. DuckDB 
-2. Writing low level operations in something like Rust with `extendr`
-3. `DataTable`, `Polars`, or other optimized dataframe libraries
+### Dataframes
 
+I love R dataframes (okay I really love tibbles), they are quick and easy to get started analyzing data. The `{tidyverse}` is a great way to filter, aggregate, and visualize data. As the data increases, there are dimminishing returns on the speed and ease of use with the amount of memory the dataframe object takes up causes everything to slow down. If you are working in Rstudio, you might have seen the bomb 💣 causing you to have to restart your entire session. 
 
-
-
+What size and tradeoff to leverage dataframes or not is dependent on your use case and hardware. I'm working on a laptop with 16gb of memory, and a couple of GB of data will bog my system down. I'm going to leverage DuckDB to work with dataframes that I otherwise could not in a typical R session on my machine. 
 
 
+### DuckDB Setup
+
+We could use DuckDB in-memory, and not need to utilize any path information, but to work with out-of-memory data we will need to create a `.duckdb` file. The following code will just check if the directory exists, if not create it and connect. 
+
+This will create 2 files:
+
+- `sim_dataset.duckdb`
+- `sim_dataset.duckdb.wal`
+
+The `sim_dataset.duckdb` file will be the file used for the database connection. The `sim_dataset.duckdb.wal` stands for write-ahead log (WAL). THE WAL file is used to log changes before executed in the main database file, and helps with recovering from crashes and maintaining transactions. This use case won't rely too much on it, as we will create a temporary table, but I have not seen anywhere that it would be safe to delete it. If it is anything like [SQLite] (https://stackoverflow.com/questions/20969996/is-it-safe-to-delete-sqlites-wal-file), I would avoid messing with it. 
+
+```{r}
+#| code-fold: show
+#| eval: true
+# setup
+library(duckdb)
+current_directory <- getwd()
+
+# Define the name of the new directory
+new_directory <- "posts/2024-06-02-flight-data-cont"
+new_directory <- 'tmp'
+
+# Combine the current working directory with the new directory name
+new_directory_path <- file.path(current_directory, new_directory)
+
+# Check if the directory exists
+if (!dir.exists(new_directory_path)) {
+  # Create the new directory if it does not exist
+  dir.create(new_directory_path)
+  print(paste("New directory created at:", new_directory_path))
+} else {
+  print(paste("Directory already exists at:", new_directory_path))
+}
+
+#con <- dbConnect(duckdb::duckdb(), "posts/2024-06-02-flight-data-cont/sim_dataset.duckdb")
+con <- dbConnect(duckdb::duckdb(), "tmp/sim_dataset_tmp.duckdb")
+
+```
+
+### Simulate Data
+
+With our DuckDB database file set up, we can now run simulations. The following code chunks the operations of the simulation and writes/appends the results to the table in DuckDB. We continue to leverage R dataframes and use `purrr::map2()` for sampling from the KDE. To avoid memory constraints that could potentially crash the system, we ensure the R dataframe does not become too large.
+
+```{r}
+#| code-fold: show
+#| eval: true
+#| echo: false
+
+simulate_data <- function(df, n_sims) {
+  
+  df |> 
+    mutate(sims = list(1:n_sims)) |> 
+    unnest(sims) |> 
+    mutate(
+      arrivals = map2(.x = passengers, .y = .kde,  ~ks::rkde(.x, .y))
+    ) |> 
+    select(carrier, origin, dest, dep_dttm, passengers, avg_num_bags, sims, arrivals) 
+  
+}
 
 
 
+write_duckdb <- function(n, df, n_sims=100) {
+
+  if(n == 1) {
+    dbWriteTable(con, "arrivals", simulate_data(df, n_sims), temporary = TRUE, overwrite = TRUE)
+  } else {
+    dbAppendTable(con, "arrivals", simulate_data(df, n_sims) |> mutate(sims = sims + (n_sims*(n-1))))
+  }
+  
+}
+
+
+invisible(map(.x = 1:100, ~write_duckdb(.x, june_27_base, 100)))
+```
+
+### DuckDB Table - Arrivals
+
+The table now has each flight, simulated 1,000 times. Our base dataframe was 995 flights. 
+
+```{r}
+#| code-fold: show
+#| eval: true
+tbl(con, "arrivals")
+
+
+tbl(con, "arrivals") |> 
+  count()
+```
+
+### Let's make it loooooong
+
+The first output shows the row count when we `unnest()` the arrivals column, transforming the data to represent one row per passenger instead of per flight. This results in a significantly larger dataset, far beyond what I can handle in-memory on my machine.
+
+Both table counts are printed to show that we are able to transform and aggregate the data **OUT-OF-MEMORY**. The potential DuckDB unlocks is absolutely insane. When I got started in 2019, I had a MacBook Air that had 8 GB of RAM (I still only have 16 GB 🙃), which limited the amount of data I could process. With DuckDB, we can leverage additional storage and CPUs to handle larger datasets efficiently.
+
+```{r}
+#| code-fold: show
+tbl(con, "arrivals") |> 
+  mutate(arrivals = sql("unnest(arrivals)")) |> 
+  count()
+
+
+tbl(con, "arrivals") |> 
+  mutate(
+    arrivals = sql("unnest(arrivals)"),
+    model_dttm = dep_dttm - minutes(arrivals)
+    ) |> 
+  group_by(origin, model_dttm, sims) |> 
+  summarise(
+    n = n(),
+    .groups = 'drop'
+  ) |> 
+  count()
+
+```
+
+# Results
+
+With the simulations completed and the ability to transform and aggregate the data out-of-memory, let's examine the results. We’ve been analyzing the data on a minute-by-minute basis, but for the final output, we will group it into 5-minute intervals. This approach helps convey variance in a simpler and more intuitive manner.
+
+The plot displays the average number of passengers, along with the minimum and maximum values from the simulations. The colored line represents the average number of passengers expected to arrive in 5-minute increments. The spread of the distribution illustrates the variance in the simulation.
+
+Examining the peaks for each station, we observe that between 200 to 400 passengers could arrive within any given 5-minute interval during that time. The uncertainty introduced by the arrival curve can significantly impact airport operations.
+
+
+```{r}
+#| eval: true
+#| code-fold: show
+df_arrivals <- tbl(con, "arrivals") |> 
+  mutate(
+    arrivals = sql("unnest(arrivals)"),
+    model_dttm = dep_dttm - minutes(arrivals),
+    model_dttm = model_dttm - minutes(minute(model_dttm) %% 5)
+    ) |> 
+  count(origin, model_dttm, sims) |> 
+  collect()
+
+
+df_arrivals |> 
+  group_by(origin, model_dttm) |> 
+  mutate(
+    across(n, list(mean = mean, min=min, max=max))
+  ) |> 
+  ggplot(aes(model_dttm, n)) +
+  geom_ribbon(aes(ymin = n_min, ymax=n_max), fill = 'grey70') + 
+  geom_line(aes(y = n_mean, color = origin)) + 
+  facet_wrap(~origin, ncol = 1)
+
+```
+
+### What's Next? 
+
+We can use the output of the arrivals to pass through Discrete Event Simulation software, such as [simmer](https://r-simmer.org/) or [SimPy](https://simpy.readthedocs.io/en/latest/). You can probably guess which route I will be utilizing.
+
+There is also room for further optimization of the passenger arrivals data. As mentioned earlier, dataframes aren't necessarily the optimal approach. Columns like Carrier, Origin, Destination, and Departure Time are all repeated. The next step could involve using a NoSQL or document storage approach to handle these redundancies more efficiently.
+
+The ultimate goal of this workflow is to power a Shiny app focused on a single station. The arrivals generated using this method would initialize relatively quickly, and with DuckDB, it should be sufficient to filter and collect the necessary data efficiently.
+
+:::{.callout-tip collapse="true"}
+## Expand for Session Info
+```{r, echo = FALSE}
+library(sessioninfo)
+# save the session info as an object
+pkg_sesh <- session_info(pkgs = "attached")
+
+# get the quarto version
+quarto_version <- system("quarto --version", intern = TRUE)
+
+# inject the quarto info
+pkg_sesh$platform$quarto <- paste(
+  system("quarto --version", intern = TRUE), 
+  "@", 
+  quarto::quarto_path()
+  )
+
+# print it out
+pkg_sesh
+```
+
+:::
 
 
 
