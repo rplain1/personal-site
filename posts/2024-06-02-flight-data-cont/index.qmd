@@ -4,7 +4,7 @@ author: "Ryan Plain"
 date: "2024-06-07"
 categories: [Flights, R]
 description: "Adding variance using the KDE of each arrival curve"
-draft: false
+draft: true
 format: 
   html: 
     code-fold: true

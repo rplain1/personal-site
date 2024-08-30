@@ -5,6 +5,7 @@ date: "2024-06-01"
 categories: [Flights, R]
 description: "Begin simmulating passenger and bag traffic"
 image: "image.png"
+draft: true
 format: 
   html: 
     code-fold: true
